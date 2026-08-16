@@ -82,15 +82,15 @@
 <body>
 
 <h1>工资核算</h1>
-<p class="sub">业绩一律填<b>万元</b>（62 万 8 千就填 62.8）。数据只存在你自己的浏览器里，不上传。</p>
+<p class="sub">业绩一律填<b>元</b>（62 万 8 千就填 628000）。数据只存在你自己的浏览器里，不上传。</p>
 
 <div class="card store">
   <h2>本月总数</h2>
   <p class="rule">总店业绩：店长的总店提成、财务与配送的业绩奖金都以它为基数。<br>本月天数：请假扣款的日薪就是拿它去除（3 月填 31、4 月填 30、2 月填 28）。</p>
   <div class="grid">
     <div>
-      <label>本月总店业绩（万元）</label>
-      <input type="number" id="storePerf" min="0" step="0.1" placeholder="0">
+      <label>本月总店业绩（元）</label>
+      <input type="number" id="storePerf" min="0" step="1000" placeholder="0">
     </div>
     <div>
       <label>本月天数</label>
@@ -129,7 +129,7 @@
 
 <script>
 /* ============ 规则配置：改这里就行 ============ */
-const WAN = 10000;                      // 输入单位是万元，内部一律换成元
+const WAN = 10000;                      // 只用来把档位门槛写成「20 万档」这种文案
 
 const RULES = {
   store: { rate: 0.001 },               // 总店提成：千分之一
@@ -193,7 +193,6 @@ const STAFF = [
 /* ============ 计算 ============ */
 const r2 = n => Math.round(n*100)/100;                     // 浮点误差修到分
 const y = n => "¥" + r2(n).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
-const w = n => (Math.round(n/WAN*10000)/10000) + " 万";   // 元 → 万，用于文案
 const perfBonus = p => {
   for (const t of RULES.perfBonus) if (p >= t.min) return Math.floor(p/100000) * t.per100k;
   return 0;
@@ -204,11 +203,11 @@ function personalCommission(acd, b, lines){
   const total = acd + b;
   const tier = RULES.tiers.find(t => total >= t.min);
   if (!tier){
-    lines.push(["个人提成 — 未达 15 万门槛，差 " + w(RULES.floor - total), 0, "miss"]);
+    lines.push(["个人提成 — 未达 15 万门槛，差 " + y(RULES.floor - total), 0, "miss"]);
     return 0;
   }
   const ca = r2(acd * tier.acd), cb = r2(b * tier.b);
-  lines.push(["个人业绩合计 " + w(total) + " → 满 " + (tier.min/WAN) + " 万档", null]);
+  lines.push(["个人业绩合计 " + y(total) + " → 满 " + (tier.min/WAN) + " 万档", null]);
   lines.push(["A/C/D 类提成（" + (tier.acd*100) + "%）", ca]);
   lines.push(["B 类提成（" + (tier.b*100) + "%）", cb]);
   return ca + cb;
@@ -243,7 +242,7 @@ function calc(emp, v, storePerf, monthDays){
     base = RULES.manager.base;
     const sc = r2(storePerf * RULES.store.rate);
     lines.push(["底薪（" + RULES.manager.baseNote + "）", base]);
-    lines.push(["总店提成（" + w(storePerf) + " × 千分之一）", sc]);
+    lines.push(["总店提成（" + y(storePerf) + " × 千分之一）", sc]);
     extra = sc + personalCommission(acd, b, lines);
   }
 
@@ -279,12 +278,12 @@ function calc(emp, v, storePerf, monthDays){
 }
 
 /* ============ 渲染 ============ */
-// [字段名, 标签, 单位是不是万元]
+// [字段名, 标签, 是不是金额（金额步进 1000，天数/趟数步进 1）]
 const FIELDS = {
-  manager:  [["acd","个人 A/C/D 类业绩（万）",1],["b","个人 B 类业绩（万）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",0]],
-  sales:    [["acd","A/C/D 类业绩（万）",1],["b","B 类业绩（万）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",0]],
-  finance:  [["leave","请假天数",0],["adj","其他增减（元，可负）",0]],
-  delivery: [["trips","送货趟数",0],["leave","请假天数",0],["adj","其他增减（元，可负）",0]]
+  manager:  [["acd","个人 A/C/D 类业绩（元）",1],["b","个人 B 类业绩（元）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",1]],
+  sales:    [["acd","A/C/D 类业绩（元）",1],["b","B 类业绩（元）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",1]],
+  finance:  [["leave","请假天数",0],["adj","其他增减（元，可负）",1]],
+  delivery: [["trips","送货趟数",0],["leave","请假天数",0],["adj","其他增减（元，可负）",1]]
 };
 const RULETEXT = {
   manager:  "底薪 8,000 ｜ 总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 请假第 1 天起按 8,000 ÷ 当月天数扣",
@@ -293,7 +292,7 @@ const RULETEXT = {
   delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣天"
 };
 
-const KEY = "gc-salary-v2";   // v2 起页面填的是万元，旧存档单位不同，不复用
+const KEY = "gc-salary-v3";   // v3 起业绩填回元，旧存档单位不同，不复用
 let saved = JSON.parse(localStorage.getItem(KEY) || "{}");
 let data = {};
 
@@ -302,10 +301,10 @@ document.getElementById("staff").innerHTML = STAFF.map(e => `
     <h2>${e.name}<span class="tag">${e.role}</span></h2>
     <p class="rule">${RULETEXT[e.type]}</p>
     <div class="grid">
-      ${FIELDS[e.type].map(([k,l,isWan]) => `
+      ${FIELDS[e.type].map(([k,l,isMoney]) => `
         <div>
           <label>${l}</label>
-          <input type="number" step="${isWan?0.1:(k==='adj'?100:1)}" ${k==='leave'?'min="0"':''} data-wan="${isWan}" data-emp="${e.id}" data-k="${k}" placeholder="0">
+          <input type="number" step="${isMoney?1000:1}" ${k==='leave'?'min="0"':''} data-emp="${e.id}" data-k="${k}" placeholder="0">
         </div>`).join("")}
     </div>
     <div class="out" id="out-${e.id}"></div>
@@ -322,20 +321,18 @@ document.querySelectorAll("input[data-emp]").forEach(i => {
 });
 
 function readAll(){
-  // 页面填的是万元，这里统一换算成元再算
   const d = {
-    storePerf: (+document.getElementById("storePerf").value || 0) * WAN,
+    storePerf: +document.getElementById("storePerf").value || 0,
     monthDays: +document.getElementById("monthDays").value || 30
   };
   STAFF.forEach(e => d[e.id] = {});
   document.querySelectorAll("input[data-emp]").forEach(i => {
-    const raw = +i.value || 0;
-    d[i.dataset.emp][i.dataset.k] = i.dataset.wan === "1" ? raw * WAN : raw;
+    d[i.dataset.emp][i.dataset.k] = +i.value || 0;
   });
   return d;
 }
 
-// 存的是页面上原样填的数字（万元），不是换算后的元
+// 存页面上原样填的数字
 function saveRaw(){
   const r = {
     storePerf: document.getElementById("storePerf").value,
@@ -353,7 +350,7 @@ function render(){
   data = readAll();
   saveRaw();
   const sp = data.storePerf, md = data.monthDays;
-  let grand = 0, rows = "", txt = "总店业绩 " + w(sp) + "（" + y(sp) + "）｜本月 " + md + " 天\n\n";
+  let grand = 0, rows = "", txt = "总店业绩 " + y(sp) + "｜本月 " + md + " 天\n\n";
 
   STAFF.forEach(e => {
     const r = calc(e, data[e.id], sp, md);
