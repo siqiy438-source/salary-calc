@@ -75,15 +75,15 @@
 <body>
 
 <h1>工资核算</h1>
-<p class="sub">输入业绩 → 自动生成工资明细。数据只存在你自己的浏览器里，不上传。</p>
+<p class="sub">业绩一律填<b>万元</b>（62 万 8 千就填 62.8）。数据只存在你自己的浏览器里，不上传。</p>
 
 <div class="card store">
   <h2>总店业绩</h2>
   <p class="rule">店长的总店提成、财务与配送的业绩奖金都以这里为基数。</p>
   <div class="grid">
     <div>
-      <label>本月总店业绩（元）</label>
-      <input type="number" id="storePerf" min="0" step="100" placeholder="0">
+      <label>本月总店业绩（万元）</label>
+      <input type="number" id="storePerf" min="0" step="0.1" placeholder="0">
     </div>
   </div>
 </div>
@@ -109,30 +109,32 @@
 </div>
 
 <p class="foot">
-  提成比例以文字规则为准：总店万分之一，店长个人 A/C/D 千分之二、B 千分之一。<br>
+  个人提成门槛与比例：店长、销售一视同仁，个人业绩满 15 万起提，满 20 万跳高档。<br>
   财务与配送的业绩奖金按「每满 10 万」计一次，不足 10 万的零头不计。
 </p>
 
 <script>
 /* ============ 规则配置：改这里就行 ============ */
+const WAN = 10000;                      // 输入单位是万元，内部一律换成元
+
 const RULES = {
-  store: { rate: 0.0001 },              // 总店提成：万分之一
+  store: { rate: 0.001 },               // 总店提成：千分之一
+
+  // 个人业绩提成：店长和销售用同一套档位
+  tiers: [                              // 从高到低匹配
+    { min: 200000, acd: 0.02, b: 0.01  },   // 满 20 万：A/C/D 2%，B 1%
+    { min: 150000, acd: 0.01, b: 0.005 }    // 满 15 万：A/C/D 1%，B 0.5%
+  ],
+  floor: 150000,                        // 个人业绩低于此额度无提成
 
   manager: {                            // 店长
     base: 8000,
-    baseNote: "基本工资 8,000",
-    acd: 0.002,                         // A/C/D 类：千分之二
-    b:   0.001                          // B 类：千分之一
+    baseNote: "基本工资 8,000"
   },
 
   sales: {                              // 销售
     base: 4500,
-    baseNote: "基本 2,500 + 社保 1,200 + 全勤 500 + 中餐 300",
-    tiers: [                            // 从高到低匹配
-      { min: 200000, acd: 0.002,  b: 0.001   },   // 满 20 万
-      { min: 150000, acd: 0.001,  b: 0.0005  }    // 满 15 万
-    ],
-    floor: 150000                       // 低于此额度无提成
+    baseNote: "基本 2,500 + 社保 1,200 + 全勤 500 + 中餐 300"
   },
 
   finance: {                            // 财务
@@ -163,11 +165,28 @@ const STAFF = [
 ];
 
 /* ============ 计算 ============ */
-const y = n => "¥" + (Math.round(n*100)/100).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
+const r2 = n => Math.round(n*100)/100;                     // 浮点误差修到分
+const y = n => "¥" + r2(n).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
+const w = n => (Math.round(n/WAN*10000)/10000) + " 万";   // 元 → 万，用于文案
 const perfBonus = p => {
   for (const t of RULES.perfBonus) if (p >= t.min) return Math.floor(p/100000) * t.per100k;
   return 0;
 };
+
+// 个人业绩提成：店长、销售共用
+function personalCommission(acd, b, lines){
+  const total = acd + b;
+  const tier = RULES.tiers.find(t => total >= t.min);
+  if (!tier){
+    lines.push(["个人提成 — 未达 15 万门槛，差 " + w(RULES.floor - total), 0, "miss"]);
+    return 0;
+  }
+  const ca = r2(acd * tier.acd), cb = r2(b * tier.b);
+  lines.push(["个人业绩合计 " + w(total) + " → 满 " + (tier.min/WAN) + " 万档", null]);
+  lines.push(["A/C/D 类提成（" + (tier.acd*100) + "%）", ca]);
+  lines.push(["B 类提成（" + (tier.b*100) + "%）", cb]);
+  return ca + cb;
+}
 
 function calc(emp, v, storePerf){
   const acd = v.acd||0, b = v.b||0, adj = v.adj||0;
@@ -176,31 +195,16 @@ function calc(emp, v, storePerf){
 
   if (emp.type === "manager"){
     base = RULES.manager.base;
-    const sc = storePerf * RULES.store.rate;
-    const ca = acd * RULES.manager.acd;
-    const cb = b * RULES.manager.b;
+    const sc = r2(storePerf * RULES.store.rate);
     lines.push(["底薪（" + RULES.manager.baseNote + "）", base]);
-    lines.push(["总店提成（" + y(storePerf) + " × 万分之一）", sc]);
-    lines.push(["个人 A/C/D 提成（千分之二）", ca]);
-    lines.push(["个人 B 类提成（千分之一）", cb]);
-    extra = sc + ca + cb;
+    lines.push(["总店提成（" + w(storePerf) + " × 千分之一）", sc]);
+    extra = sc + personalCommission(acd, b, lines);
   }
 
   if (emp.type === "sales"){
     base = RULES.sales.base;
     lines.push(["底薪（" + RULES.sales.baseNote + "）", base]);
-    const total = acd + b;
-    const tier = RULES.sales.tiers.find(t => total >= t.min);
-    if (!tier){
-      const gap = RULES.sales.floor - total;
-      lines.push(["提成 — 未达 15 万门槛，差 " + y(gap), 0, "miss"]);
-    } else {
-      const ca = acd * tier.acd, cb = b * tier.b;
-      lines.push(["个人业绩合计 " + y(total) + " → 满 " + (tier.min/10000) + " 万档", null]);
-      lines.push(["A/C/D 提成（" + (tier.acd*1000) + "‰）", ca]);
-      lines.push(["B 类提成（" + (tier.b*1000) + "‰）", cb]);
-      extra = ca + cb;
-    }
+    extra = personalCommission(acd, b, lines);
   }
 
   if (emp.type === "finance" || emp.type === "delivery"){
@@ -228,57 +232,71 @@ function calc(emp, v, storePerf){
 }
 
 /* ============ 渲染 ============ */
+// [字段名, 标签, 单位是不是万元]
 const FIELDS = {
-  manager:  [["acd","个人 A/C/D 类业绩"],["b","个人 B 类业绩"],["adj","其他增减（可负）"]],
-  sales:    [["acd","A/C/D 类业绩"],["b","B 类业绩"],["adj","其他增减（可负）"]],
-  finance:  [["adj","其他增减（可负）"]],
-  delivery: [["trips","送货趟数"],["adj","其他增减（可负）"]]
+  manager:  [["acd","个人 A/C/D 类业绩（万）",1],["b","个人 B 类业绩（万）",1],["adj","其他增减（元，可负）",0]],
+  sales:    [["acd","A/C/D 类业绩（万）",1],["b","B 类业绩（万）",1],["adj","其他增减（元，可负）",0]],
+  finance:  [["adj","其他增减（元，可负）",0]],
+  delivery: [["trips","送货趟数",0],["adj","其他增减（元，可负）",0]]
 };
 const RULETEXT = {
-  manager:  "底薪 8,000 ｜ 总店业绩 × 万分之一 ｜ 个人 A/C/D 千分之二、B 类千分之一",
-  sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 千分之一、B 千分之零点五；20 万档 A/C/D 千分之二、B 千分之一",
+  manager:  "底薪 8,000 ｜ 总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1%",
+  sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1%",
   finance:  "底薪 6,800 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100；不满 40 万无奖金",
   delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100"
 };
 
-const KEY = "gc-salary-v1";
-let data = JSON.parse(localStorage.getItem(KEY) || "{}");
+const KEY = "gc-salary-v2";   // v2 起页面填的是万元，旧存档单位不同，不复用
+let saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+let data = {};
 
 document.getElementById("staff").innerHTML = STAFF.map(e => `
   <div class="card">
     <h2>${e.name}<span class="tag">${e.role}</span></h2>
     <p class="rule">${RULETEXT[e.type]}</p>
     <div class="grid">
-      ${FIELDS[e.type].map(([k,l]) => `
+      ${FIELDS[e.type].map(([k,l,isWan]) => `
         <div>
           <label>${l}</label>
-          <input type="number" step="${k==='trips'?1:100}" data-emp="${e.id}" data-k="${k}" placeholder="0">
+          <input type="number" step="${isWan?0.1:(k==='trips'?1:100)}" data-wan="${isWan}" data-emp="${e.id}" data-k="${k}" placeholder="0">
         </div>`).join("")}
     </div>
     <div class="out" id="out-${e.id}"></div>
   </div>`).join("");
 
-document.getElementById("storePerf").value = data.storePerf ?? "";
+document.getElementById("storePerf").value = saved.storePerf ?? "";
 document.querySelectorAll("input[data-emp]").forEach(i => {
-  const v = data[i.dataset.emp]?.[i.dataset.k];
+  const v = saved[i.dataset.emp]?.[i.dataset.k];
   if (v !== undefined && v !== null) i.value = v;
 });
 
 function readAll(){
-  const d = { storePerf: +document.getElementById("storePerf").value || 0 };
+  // 页面填的是万元，这里统一换算成元再算
+  const d = { storePerf: (+document.getElementById("storePerf").value || 0) * WAN };
   STAFF.forEach(e => d[e.id] = {});
   document.querySelectorAll("input[data-emp]").forEach(i => {
-    d[i.dataset.emp][i.dataset.k] = +i.value || 0;
+    const raw = +i.value || 0;
+    d[i.dataset.emp][i.dataset.k] = i.dataset.wan === "1" ? raw * WAN : raw;
   });
   return d;
+}
+
+// 存的是页面上原样填的数字（万元），不是换算后的元
+function saveRaw(){
+  const r = { storePerf: document.getElementById("storePerf").value };
+  STAFF.forEach(e => r[e.id] = {});
+  document.querySelectorAll("input[data-emp]").forEach(i => {
+    r[i.dataset.emp][i.dataset.k] = i.value;
+  });
+  localStorage.setItem(KEY, JSON.stringify(r));
 }
 
 let lastText = "";
 function render(){
   data = readAll();
-  localStorage.setItem(KEY, JSON.stringify(data));
+  saveRaw();
   const sp = data.storePerf;
-  let grand = 0, rows = "", txt = "总店业绩 " + y(sp) + "\n\n";
+  let grand = 0, rows = "", txt = "总店业绩 " + w(sp) + "（" + y(sp) + "）\n\n";
 
   STAFF.forEach(e => {
     const r = calc(e, data[e.id], sp);
