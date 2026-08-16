@@ -47,8 +47,11 @@
   .store input[type=number]:focus{background:rgba(255,255,255,.2);border-color:#fff}
   .sum{background:#1c1a17;color:#fff;border-color:#1c1a17}
   .sum h2{color:#fff}
-  .sum table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
-  .sum th,.sum td{padding:7px 4px;text-align:right;border-bottom:1px solid rgba(255,255,255,.12);font-variant-numeric:tabular-nums}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .sum table{width:100%;min-width:290px;border-collapse:collapse;font-size:13px;margin-top:8px}
+  .neg{color:var(--warn)}
+  .sum td.neg{color:#ff9b86}
+  .sum th,.sum td{padding:7px 4px;text-align:right;border-bottom:1px solid rgba(255,255,255,.12);font-variant-numeric:tabular-nums;white-space:nowrap}
   .sum th{color:rgba(255,255,255,.6);font-weight:400;font-size:11px}
   .sum th:first-child,.sum td:first-child{text-align:left}
   .sum tfoot td{border-bottom:none;font-weight:600;font-size:15px;padding-top:10px}
@@ -61,6 +64,10 @@
   button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
   button:active{opacity:.7}
   .foot{font-size:11px;color:var(--ink2);text-align:center;margin-top:26px;line-height:1.9}
+  @media (max-width:430px){
+    .sum table{font-size:12px}
+    .sum th,.sum td{padding:7px 3px}
+  }
   @media print{
     body{padding:0;max-width:none}
     .card{break-inside:avoid;border-color:#ccc}
@@ -78,12 +85,16 @@
 <p class="sub">业绩一律填<b>万元</b>（62 万 8 千就填 62.8）。数据只存在你自己的浏览器里，不上传。</p>
 
 <div class="card store">
-  <h2>总店业绩</h2>
-  <p class="rule">店长的总店提成、财务与配送的业绩奖金都以这里为基数。</p>
+  <h2>本月总数</h2>
+  <p class="rule">总店业绩：店长的总店提成、财务与配送的业绩奖金都以它为基数。<br>本月天数：请假扣款的日薪就是拿它去除（3 月填 31、4 月填 30、2 月填 28）。</p>
   <div class="grid">
     <div>
       <label>本月总店业绩（万元）</label>
       <input type="number" id="storePerf" min="0" step="0.1" placeholder="0">
+    </div>
+    <div>
+      <label>本月天数</label>
+      <input type="number" id="monthDays" min="28" max="31" step="1">
     </div>
   </div>
 </div>
@@ -93,13 +104,15 @@
 
 <div class="card sum">
   <h2>本月汇总</h2>
+  <div class="scroll">
   <table>
     <thead>
-      <tr><th>姓名</th><th>底薪</th><th>提成/奖金</th><th>调整</th><th>实发</th></tr>
+      <tr><th>姓名</th><th>底薪</th><th>提成/奖金</th><th>扣减</th><th>实发</th></tr>
     </thead>
     <tbody id="sumBody"></tbody>
     <tfoot><tr><td>合计</td><td></td><td></td><td></td><td id="sumAll">¥0</td></tr></tfoot>
   </table>
+  </div>
 </div>
 
 <div class="btns">
@@ -110,7 +123,8 @@
 
 <p class="foot">
   个人提成门槛与比例：店长、销售一视同仁，个人业绩满 15 万起提，满 20 万跳高档。<br>
-  财务与配送的业绩奖金按「每满 10 万」计一次，不足 10 万的零头不计。
+  财务与配送的业绩奖金按「每满 10 万」计一次，不足 10 万的零头不计。<br>
+  请假扣款的日薪基数不含全勤奖（全勤奖是超 2 天时整笔扣掉的）。
 </p>
 
 <script>
@@ -127,24 +141,26 @@ const RULES = {
   ],
   floor: 150000,                        // 个人业绩低于此额度无提成
 
+  // 各岗位工资构成。日薪基数 =（基本 + 社保 + 中餐），不含全勤奖
+  // freeDays：每月正常休息天数，请假在这个数以内不扣
   manager: {                            // 店长
-    base: 8000,
-    baseNote: "基本工资 8,000"
+    pay: { basic: 8000, social: 0, attend: 0, meal: 0 },
+    freeDays: 0
   },
 
   sales: {                              // 销售
-    base: 4500,
-    baseNote: "基本 2,500 + 社保 1,200 + 全勤 500 + 中餐 300"
+    pay: { basic: 2500, social: 1200, attend: 500, meal: 300 },
+    freeDays: 2
   },
 
   finance: {                            // 财务
-    base: 6800,
-    baseNote: "基本 5,200 + 社保 1,200 + 全勤 100 + 中餐 300"
+    pay: { basic: 5200, social: 1200, attend: 100, meal: 300 },
+    freeDays: 2
   },
 
   delivery: {                           // 配送
-    base: 5800,
-    baseNote: "基本 4,200 + 社保 1,200 + 全勤 100 + 中餐 300",
+    pay: { basic: 4200, social: 1200, attend: 100, meal: 300 },
+    freeDays: 2,
     perTrip: 15                         // 每趟 15 元
   },
 
@@ -154,6 +170,16 @@ const RULES = {
     { min: 400000, per100k: 100 }
   ]
 };
+
+// 由工资构成推导出：底薪合计、构成说明、日薪基数（不含全勤奖）
+["manager","sales","finance","delivery"].forEach(t => {
+  const p = RULES[t].pay, n = x => x.toLocaleString("zh-CN");
+  RULES[t].base = p.basic + p.social + p.attend + p.meal;
+  RULES[t].dailyBase = p.basic + p.social + p.meal;
+  RULES[t].baseNote = (p.social || p.attend || p.meal)
+    ? `基本 ${n(p.basic)} + 社保 ${n(p.social)} + 全勤 ${n(p.attend)} + 中餐 ${n(p.meal)}`
+    : `基本工资 ${n(p.basic)}`;
+});
 
 /* ============ 员工名单：加人删人改这里 ============ */
 const STAFF = [
@@ -188,8 +214,28 @@ function personalCommission(acd, b, lines){
   return ca + cb;
 }
 
-function calc(emp, v, storePerf){
-  const acd = v.acd||0, b = v.b||0, adj = v.adj||0;
+// 请假扣款：超出每月正常休息天数的部分，先扣全勤奖，再按日薪扣天
+function leaveDeduct(R, days, monthDays, lines){
+  if (days <= 0) return 0;
+  const n = x => x.toLocaleString("zh-CN");
+  if (days <= R.freeDays){
+    lines.push([`请假 ${days} 天 — 在每月 ${R.freeDays} 天正常休息内，不扣`, null]);
+    return 0;
+  }
+  let sum = 0;
+  if (R.pay.attend > 0){
+    lines.push([`请假超过 ${R.freeDays} 天 — 扣全勤奖`, -R.pay.attend]);
+    sum += R.pay.attend;
+  }
+  const over = days - R.freeDays;
+  const amt = r2(R.dailyBase / monthDays * over);
+  lines.push([`请假扣款（${n(R.dailyBase)} ÷ ${monthDays} 天 × ${over} 天）`, -amt]);
+  return sum + amt;
+}
+
+function calc(emp, v, storePerf, monthDays){
+  const acd = v.acd||0, b = v.b||0, adj = v.adj||0, leave = v.leave||0;
+  const R0 = RULES[emp.type];
   const lines = [];
   let base = 0, extra = 0;
 
@@ -227,23 +273,24 @@ function calc(emp, v, storePerf){
     extra += bonus;
   }
 
-  if (adj !== 0) lines.push([adj > 0 ? "其他补贴 / 奖励" : "扣款", adj]);
-  return { base, extra, adj, total: base + extra + adj, lines };
+  const deduct = leaveDeduct(R0, leave, monthDays, lines);
+  if (adj !== 0) lines.push([adj > 0 ? "其他补贴 / 奖励" : "其他扣款", adj]);
+  return { base, extra, adj, deduct, total: r2(base + extra + adj - deduct), lines };
 }
 
 /* ============ 渲染 ============ */
 // [字段名, 标签, 单位是不是万元]
 const FIELDS = {
-  manager:  [["acd","个人 A/C/D 类业绩（万）",1],["b","个人 B 类业绩（万）",1],["adj","其他增减（元，可负）",0]],
-  sales:    [["acd","A/C/D 类业绩（万）",1],["b","B 类业绩（万）",1],["adj","其他增减（元，可负）",0]],
-  finance:  [["adj","其他增减（元，可负）",0]],
-  delivery: [["trips","送货趟数",0],["adj","其他增减（元，可负）",0]]
+  manager:  [["acd","个人 A/C/D 类业绩（万）",1],["b","个人 B 类业绩（万）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",0]],
+  sales:    [["acd","A/C/D 类业绩（万）",1],["b","B 类业绩（万）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",0]],
+  finance:  [["leave","请假天数",0],["adj","其他增减（元，可负）",0]],
+  delivery: [["trips","送货趟数",0],["leave","请假天数",0],["adj","其他增减（元，可负）",0]]
 };
 const RULETEXT = {
-  manager:  "底薪 8,000 ｜ 总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1%",
-  sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1%",
-  finance:  "底薪 6,800 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100；不满 40 万无奖金",
-  delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100"
+  manager:  "底薪 8,000 ｜ 总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 请假第 1 天起按 8,000 ÷ 当月天数扣",
+  sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 每月 2 天正常休息，超出先扣全勤 500，再按 4,000 ÷ 当月天数扣天",
+  finance:  "底薪 6,800 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100；不满 40 万无奖金 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 6,700 ÷ 当月天数扣天",
+  delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣天"
 };
 
 const KEY = "gc-salary-v2";   // v2 起页面填的是万元，旧存档单位不同，不复用
@@ -258,13 +305,17 @@ document.getElementById("staff").innerHTML = STAFF.map(e => `
       ${FIELDS[e.type].map(([k,l,isWan]) => `
         <div>
           <label>${l}</label>
-          <input type="number" step="${isWan?0.1:(k==='trips'?1:100)}" data-wan="${isWan}" data-emp="${e.id}" data-k="${k}" placeholder="0">
+          <input type="number" step="${isWan?0.1:(k==='adj'?100:1)}" ${k==='leave'?'min="0"':''} data-wan="${isWan}" data-emp="${e.id}" data-k="${k}" placeholder="0">
         </div>`).join("")}
     </div>
     <div class="out" id="out-${e.id}"></div>
   </div>`).join("");
 
 document.getElementById("storePerf").value = saved.storePerf ?? "";
+// 本月天数：没存过就按当前月份的实际天数填
+const now = new Date();
+document.getElementById("monthDays").value =
+  saved.monthDays || new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
 document.querySelectorAll("input[data-emp]").forEach(i => {
   const v = saved[i.dataset.emp]?.[i.dataset.k];
   if (v !== undefined && v !== null) i.value = v;
@@ -272,7 +323,10 @@ document.querySelectorAll("input[data-emp]").forEach(i => {
 
 function readAll(){
   // 页面填的是万元，这里统一换算成元再算
-  const d = { storePerf: (+document.getElementById("storePerf").value || 0) * WAN };
+  const d = {
+    storePerf: (+document.getElementById("storePerf").value || 0) * WAN,
+    monthDays: +document.getElementById("monthDays").value || 30
+  };
   STAFF.forEach(e => d[e.id] = {});
   document.querySelectorAll("input[data-emp]").forEach(i => {
     const raw = +i.value || 0;
@@ -283,7 +337,10 @@ function readAll(){
 
 // 存的是页面上原样填的数字（万元），不是换算后的元
 function saveRaw(){
-  const r = { storePerf: document.getElementById("storePerf").value };
+  const r = {
+    storePerf: document.getElementById("storePerf").value,
+    monthDays: document.getElementById("monthDays").value
+  };
   STAFF.forEach(e => r[e.id] = {});
   document.querySelectorAll("input[data-emp]").forEach(i => {
     r[i.dataset.emp][i.dataset.k] = i.value;
@@ -295,22 +352,24 @@ let lastText = "";
 function render(){
   data = readAll();
   saveRaw();
-  const sp = data.storePerf;
-  let grand = 0, rows = "", txt = "总店业绩 " + w(sp) + "（" + y(sp) + "）\n\n";
+  const sp = data.storePerf, md = data.monthDays;
+  let grand = 0, rows = "", txt = "总店业绩 " + w(sp) + "（" + y(sp) + "）｜本月 " + md + " 天\n\n";
 
   STAFF.forEach(e => {
-    const r = calc(e, data[e.id], sp);
+    const r = calc(e, data[e.id], sp, md);
     grand += r.total;
     document.getElementById("out-" + e.id).innerHTML =
       r.lines.map(([t,v,cls]) =>
         v === null
           ? `<div class="row muted"><span>${t}</span><span></span></div>`
-          : `<div class="row ${cls||""}"><span class="${cls||""}">${t}</span><span>${y(v)}</span></div>`
+          : `<div class="row ${cls||""}"><span class="${cls||""}">${t}</span><span class="${v<0?"neg":""}">${v<0?"-"+y(-v):y(v)}</span></div>`
       ).join("") +
       `<div class="row total"><span>实发合计</span><span>${y(r.total)}</span></div>`;
 
-    rows += `<tr><td>${e.name}</td><td>${y(r.base)}</td><td>${y(r.extra)}</td><td>${r.adj?y(r.adj):"—"}</td><td>${y(r.total)}</td></tr>`;
-    txt += `${e.name}（${e.role}）\n` + r.lines.filter(l=>l[1]!==null).map(l=>`  ${l[0]}：${y(l[1])}`).join("\n") + `\n  实发合计：${y(r.total)}\n\n`;
+    // 汇总表把「请假扣款 + 其他增减」并成一列「扣减」，明细在上面各人卡片里
+    const net = r2(r.adj - r.deduct);
+    rows += `<tr><td>${e.name}</td><td>${y(r.base)}</td><td>${y(r.extra)}</td><td class="${net<0?"neg":""}">${net?(net<0?"-"+y(-net):"+"+y(net)):"—"}</td><td>${y(r.total)}</td></tr>`;
+    txt += `${e.name}（${e.role}）\n` + r.lines.filter(l=>l[1]!==null).map(l=>`  ${l[0]}：${l[1]<0?"-"+y(-l[1]):y(l[1])}`).join("\n") + `\n  实发合计：${y(r.total)}\n\n`;
   });
 
   document.getElementById("sumBody").innerHTML = rows;
