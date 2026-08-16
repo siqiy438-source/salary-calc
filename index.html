@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>工资核算 · GC</title>
+<style>
+  :root{
+    --bg:#f6f4f0; --card:#fff; --ink:#1c1a17; --ink2:#6b6459; --line:#e3ded5;
+    --accent:#174d3a; --accent-soft:#e8f0eb; --gold:#a8863f; --warn:#b4462f;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    padding:20px 16px 60px; max-width:940px; margin:0 auto;
+  }
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:.5px}
+  .sub{color:var(--ink2);font-size:13px;margin:0 0 22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 16px 14px;margin-bottom:14px}
+  .card h2{font-size:16px;margin:0 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tag{font-size:11px;font-weight:400;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:2px 9px}
+  .rule{font-size:12px;color:var(--ink2);margin:0 0 12px;line-height:1.7}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  label{display:block;font-size:12px;color:var(--ink2);margin-bottom:4px}
+  input[type=number]{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
+    font-size:16px;background:#fcfbf9;color:var(--ink);font-variant-numeric:tabular-nums;
+  }
+  input[type=number]:focus{outline:none;border-color:var(--accent);background:#fff}
+  input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input[type=number]{-moz-appearance:textfield}
+  .out{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;font-size:13px}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:3px 0;color:var(--ink2)}
+  .row span:last-child{font-variant-numeric:tabular-nums;color:var(--ink)}
+  .row.total{border-top:1px solid var(--line);margin-top:8px;padding-top:9px;font-size:16px;font-weight:600;color:var(--ink)}
+  .row.total span:last-child{color:var(--accent)}
+  .row.muted span:last-child{color:var(--ink2)}
+  .miss{color:var(--warn)}
+  .store{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .store h2,.store .rule{color:#fff}
+  .store .rule{opacity:.75}
+  .store label{color:rgba(255,255,255,.75)}
+  .store input[type=number]{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:#fff}
+  .store input[type=number]:focus{background:rgba(255,255,255,.2);border-color:#fff}
+  .sum{background:#1c1a17;color:#fff;border-color:#1c1a17}
+  .sum h2{color:#fff}
+  .sum table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  .sum th,.sum td{padding:7px 4px;text-align:right;border-bottom:1px solid rgba(255,255,255,.12);font-variant-numeric:tabular-nums}
+  .sum th{color:rgba(255,255,255,.6);font-weight:400;font-size:11px}
+  .sum th:first-child,.sum td:first-child{text-align:left}
+  .sum tfoot td{border-bottom:none;font-weight:600;font-size:15px;padding-top:10px}
+  .sum tfoot td:last-child{color:var(--gold)}
+  .btns{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button{
+    flex:1;min-width:120px;padding:11px;border-radius:10px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit
+  }
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button:active{opacity:.7}
+  .foot{font-size:11px;color:var(--ink2);text-align:center;margin-top:26px;line-height:1.9}
+  @media print{
+    body{padding:0;max-width:none}
+    .card{break-inside:avoid;border-color:#ccc}
+    .btns,.foot{display:none}
+    .store,.sum{background:#fff!important;color:#000!important;border-color:#ccc!important}
+    .store h2,.store .rule,.store label,.sum h2{color:#000!important}
+    .sum th,.sum td{border-color:#ddd!important;color:#000!important}
+    .sum tfoot td:last-child{color:#000!important}
+  }
+</style>
+</head>
+<body>
+
+<h1>工资核算</h1>
+<p class="sub">输入业绩 → 自动生成工资明细。数据只存在你自己的浏览器里，不上传。</p>
+
+<div class="card store">
+  <h2>总店业绩</h2>
+  <p class="rule">店长的总店提成、财务与配送的业绩奖金都以这里为基数。</p>
+  <div class="grid">
+    <div>
+      <label>本月总店业绩（元）</label>
+      <input type="number" id="storePerf" min="0" step="100" placeholder="0">
+    </div>
+  </div>
+</div>
+
+<!-- 员工卡片由 JS 渲染 -->
+<div id="staff"></div>
+
+<div class="card sum">
+  <h2>本月汇总</h2>
+  <table>
+    <thead>
+      <tr><th>姓名</th><th>底薪</th><th>提成/奖金</th><th>调整</th><th>实发</th></tr>
+    </thead>
+    <tbody id="sumBody"></tbody>
+    <tfoot><tr><td>合计</td><td></td><td></td><td></td><td id="sumAll">¥0</td></tr></tfoot>
+  </table>
+</div>
+
+<div class="btns">
+  <button class="primary" onclick="window.print()">打印 / 存 PDF</button>
+  <button onclick="copyText()">复制明细</button>
+  <button onclick="resetAll()">清空重填</button>
+</div>
+
+<p class="foot">
+  提成比例以文字规则为准：总店万分之一，店长个人 A/C/D 千分之二、B 千分之一。<br>
+  财务与配送的业绩奖金按「每满 10 万」计一次，不足 10 万的零头不计。
+</p>
+
+<script>
+/* ============ 规则配置：改这里就行 ============ */
+const RULES = {
+  store: { rate: 0.0001 },              // 总店提成：万分之一
+
+  manager: {                            // 店长
+    base: 8000,
+    baseNote: "基本工资 8,000",
+    acd: 0.002,                         // A/C/D 类：千分之二
+    b:   0.001                          // B 类：千分之一
+  },
+
+  sales: {                              // 销售
+    base: 4500,
+    baseNote: "基本 2,500 + 社保 1,200 + 全勤 500 + 中餐 300",
+    tiers: [                            // 从高到低匹配
+      { min: 200000, acd: 0.002,  b: 0.001   },   // 满 20 万
+      { min: 150000, acd: 0.001,  b: 0.0005  }    // 满 15 万
+    ],
+    floor: 150000                       // 低于此额度无提成
+  },
+
+  finance: {                            // 财务
+    base: 6800,
+    baseNote: "基本 5,200 + 社保 1,200 + 全勤 100 + 中餐 300"
+  },
+
+  delivery: {                           // 配送
+    base: 5800,
+    baseNote: "基本 4,200 + 社保 1,200 + 全勤 100 + 中餐 300",
+    perTrip: 15                         // 每趟 15 元
+  },
+
+  // 财务 / 配送 共用的业绩奖金：每满 10 万
+  perfBonus: [
+    { min: 600000, per100k: 200 },
+    { min: 400000, per100k: 100 }
+  ]
+};
+
+/* ============ 员工名单：加人删人改这里 ============ */
+const STAFF = [
+  { id:"wuxuan",   name:"吴璇",   role:"店长", type:"manager" },
+  { id:"xiaoxue",  name:"小雪",   role:"销售", type:"sales"   },
+  { id:"xiaotao",  name:"小桃",   role:"销售", type:"sales"   },
+  { id:"zhugk",    name:"朱国坤", role:"财务", type:"finance" },
+  { id:"qiujb",    name:"邱家斌", role:"配送", type:"delivery"}
+];
+
+/* ============ 计算 ============ */
+const y = n => "¥" + (Math.round(n*100)/100).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
+const perfBonus = p => {
+  for (const t of RULES.perfBonus) if (p >= t.min) return Math.floor(p/100000) * t.per100k;
+  return 0;
+};
+
+function calc(emp, v, storePerf){
+  const acd = v.acd||0, b = v.b||0, adj = v.adj||0;
+  const lines = [];
+  let base = 0, extra = 0;
+
+  if (emp.type === "manager"){
+    base = RULES.manager.base;
+    const sc = storePerf * RULES.store.rate;
+    const ca = acd * RULES.manager.acd;
+    const cb = b * RULES.manager.b;
+    lines.push(["底薪（" + RULES.manager.baseNote + "）", base]);
+    lines.push(["总店提成（" + y(storePerf) + " × 万分之一）", sc]);
+    lines.push(["个人 A/C/D 提成（千分之二）", ca]);
+    lines.push(["个人 B 类提成（千分之一）", cb]);
+    extra = sc + ca + cb;
+  }
+
+  if (emp.type === "sales"){
+    base = RULES.sales.base;
+    lines.push(["底薪（" + RULES.sales.baseNote + "）", base]);
+    const total = acd + b;
+    const tier = RULES.sales.tiers.find(t => total >= t.min);
+    if (!tier){
+      const gap = RULES.sales.floor - total;
+      lines.push(["提成 — 未达 15 万门槛，差 " + y(gap), 0, "miss"]);
+    } else {
+      const ca = acd * tier.acd, cb = b * tier.b;
+      lines.push(["个人业绩合计 " + y(total) + " → 满 " + (tier.min/10000) + " 万档", null]);
+      lines.push(["A/C/D 提成（" + (tier.acd*1000) + "‰）", ca]);
+      lines.push(["B 类提成（" + (tier.b*1000) + "‰）", cb]);
+      extra = ca + cb;
+    }
+  }
+
+  if (emp.type === "finance" || emp.type === "delivery"){
+    const R = RULES[emp.type];
+    base = R.base;
+    lines.push(["底薪（" + R.baseNote + "）", base]);
+    if (emp.type === "delivery"){
+      const trips = v.trips||0;
+      const tc = trips * R.perTrip;
+      lines.push(["送货提成（" + trips + " 趟 × " + R.perTrip + " 元）", tc]);
+      extra += tc;
+    }
+    const bonus = perfBonus(storePerf);
+    if (bonus > 0){
+      const per = storePerf >= 600000 ? 200 : 100;
+      lines.push(["业绩奖金（" + Math.floor(storePerf/100000) + " 个 10 万 × " + per + " 元）", bonus]);
+    } else {
+      lines.push(["业绩奖金 — 总店未达 40 万，无奖金", 0, "miss"]);
+    }
+    extra += bonus;
+  }
+
+  if (adj !== 0) lines.push([adj > 0 ? "其他补贴 / 奖励" : "扣款", adj]);
+  return { base, extra, adj, total: base + extra + adj, lines };
+}
+
+/* ============ 渲染 ============ */
+const FIELDS = {
+  manager:  [["acd","个人 A/C/D 类业绩"],["b","个人 B 类业绩"],["adj","其他增减（可负）"]],
+  sales:    [["acd","A/C/D 类业绩"],["b","B 类业绩"],["adj","其他增减（可负）"]],
+  finance:  [["adj","其他增减（可负）"]],
+  delivery: [["trips","送货趟数"],["adj","其他增减（可负）"]]
+};
+const RULETEXT = {
+  manager:  "底薪 8,000 ｜ 总店业绩 × 万分之一 ｜ 个人 A/C/D 千分之二、B 类千分之一",
+  sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 千分之一、B 千分之零点五；20 万档 A/C/D 千分之二、B 千分之一",
+  finance:  "底薪 6,800 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100；不满 40 万无奖金",
+  delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100"
+};
+
+const KEY = "gc-salary-v1";
+let data = JSON.parse(localStorage.getItem(KEY) || "{}");
+
+document.getElementById("staff").innerHTML = STAFF.map(e => `
+  <div class="card">
+    <h2>${e.name}<span class="tag">${e.role}</span></h2>
+    <p class="rule">${RULETEXT[e.type]}</p>
+    <div class="grid">
+      ${FIELDS[e.type].map(([k,l]) => `
+        <div>
+          <label>${l}</label>
+          <input type="number" step="${k==='trips'?1:100}" data-emp="${e.id}" data-k="${k}" placeholder="0">
+        </div>`).join("")}
+    </div>
+    <div class="out" id="out-${e.id}"></div>
+  </div>`).join("");
+
+document.getElementById("storePerf").value = data.storePerf ?? "";
+document.querySelectorAll("input[data-emp]").forEach(i => {
+  const v = data[i.dataset.emp]?.[i.dataset.k];
+  if (v !== undefined && v !== null) i.value = v;
+});
+
+function readAll(){
+  const d = { storePerf: +document.getElementById("storePerf").value || 0 };
+  STAFF.forEach(e => d[e.id] = {});
+  document.querySelectorAll("input[data-emp]").forEach(i => {
+    d[i.dataset.emp][i.dataset.k] = +i.value || 0;
+  });
+  return d;
+}
+
+let lastText = "";
+function render(){
+  data = readAll();
+  localStorage.setItem(KEY, JSON.stringify(data));
+  const sp = data.storePerf;
+  let grand = 0, rows = "", txt = "总店业绩 " + y(sp) + "\n\n";
+
+  STAFF.forEach(e => {
+    const r = calc(e, data[e.id], sp);
+    grand += r.total;
+    document.getElementById("out-" + e.id).innerHTML =
+      r.lines.map(([t,v,cls]) =>
+        v === null
+          ? `<div class="row muted"><span>${t}</span><span></span></div>`
+          : `<div class="row ${cls||""}"><span class="${cls||""}">${t}</span><span>${y(v)}</span></div>`
+      ).join("") +
+      `<div class="row total"><span>实发合计</span><span>${y(r.total)}</span></div>`;
+
+    rows += `<tr><td>${e.name}</td><td>${y(r.base)}</td><td>${y(r.extra)}</td><td>${r.adj?y(r.adj):"—"}</td><td>${y(r.total)}</td></tr>`;
+    txt += `${e.name}（${e.role}）\n` + r.lines.filter(l=>l[1]!==null).map(l=>`  ${l[0]}：${y(l[1])}`).join("\n") + `\n  实发合计：${y(r.total)}\n\n`;
+  });
+
+  document.getElementById("sumBody").innerHTML = rows;
+  document.getElementById("sumAll").textContent = y(grand);
+  lastText = txt + "全店工资合计：" + y(grand);
+}
+
+document.addEventListener("input", e => { if (e.target.matches("input[type=number]")) render(); });
+
+function copyText(){
+  navigator.clipboard.writeText(lastText).then(
+    () => alert("明细已复制"),
+    () => alert("复制失败，请手动选中复制")
+  );
+}
+function resetAll(){
+  if (!confirm("清空所有已填数据？")) return;
+  localStorage.removeItem(KEY);
+  document.querySelectorAll("input[type=number]").forEach(i => i.value = "");
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
