@@ -272,13 +272,13 @@ function personalCommission(acd, b, lines){
   const total = acd + b;
   const tier = RULES.tiers.find(t => total >= t.min);
   if (!tier){
-    lines.push(["个人提成 — 未达 15 万门槛，差 " + y(RULES.floor - total), 0, "miss"]);
+    lines.push(["个人提成 — 未达 15 万门槛，差 " + y(RULES.floor - total), 0, "miss", "bonus"]);
     return 0;
   }
   const ca = r2(acd * tier.acd), cb = r2(b * tier.b);
-  lines.push(["个人业绩合计 " + y(total) + " → 满 " + (tier.min/WAN) + " 万档", null]);
-  lines.push(["A/C/D 类提成（" + (tier.acd*100) + "%）", ca]);
-  lines.push(["B 类提成（" + (tier.b*100) + "%）", cb]);
+  lines.push(["个人业绩合计 " + y(total) + " → 满 " + (tier.min/WAN) + " 万档", null, "", "bonus"]);
+  lines.push(["A/C/D 类提成（" + (tier.acd*100) + "%）", ca, "", "bonus"]);
+  lines.push(["B 类提成（" + (tier.b*100) + "%）", cb, "", "bonus"]);
   return ca + cb;
 }
 
@@ -286,17 +286,17 @@ function leaveDeduct(R, days, monthDays, lines){
   if (days <= 0) return 0;
   const n = x => x.toLocaleString("zh-CN");
   if (days <= R.freeDays){
-    lines.push([`请假 ${days} 天 — 在每月 ${R.freeDays} 天正常休息内，不扣`, null]);
+    lines.push([`请假 ${days} 天 — 在每月 ${R.freeDays} 天正常休息内，不扣`, null, "", "deduct"]);
     return 0;
   }
   let sum = 0;
   if (R.pay.attend > 0){
-    lines.push([`请假超过 ${R.freeDays} 天 — 扣全勤奖`, -R.pay.attend]);
+    lines.push([`请假超过 ${R.freeDays} 天 — 扣全勤奖`, -R.pay.attend, "", "deduct"]);
     sum += R.pay.attend;
   }
   const over = days - R.freeDays;
   const amt = r2(R.dailyBase / monthDays * over);
-  lines.push([`请假扣款（${n(R.dailyBase)} ÷ ${monthDays} 天 × ${over} 天）`, -amt]);
+  lines.push([`请假扣款（${n(R.dailyBase)} ÷ ${monthDays} 天 × ${over} 天）`, -amt, "", "deduct"]);
   return sum + amt;
 }
 
@@ -306,15 +306,15 @@ function calc(emp, v, storePerf, monthDays){
   const lines = [];
   let extra = 0;
   const base = R.base;
-  lines.push(["底薪（" + R.baseNote + "）", base]);
+  lines.push(["底薪（" + R.baseNote + "）", base, "", "base"]);
 
   if (emp.type === "manager"){
     let sc = 0;
     if (storePerf >= RULES.store.min){
       sc = r2(storePerf * RULES.store.rate);
-      lines.push(["总店提成（" + y(storePerf) + " × 千分之一）", sc]);
+      lines.push(["总店提成（" + y(storePerf) + " × 千分之一）", sc, "", "bonus"]);
     } else {
-      lines.push(["总店提成 — 总店未达 " + (RULES.store.min/WAN) + " 万，无提成（差 " + y(RULES.store.min - storePerf) + "）", 0, "miss"]);
+      lines.push(["总店提成 — 总店未达 " + (RULES.store.min/WAN) + " 万，无提成（差 " + y(RULES.store.min - storePerf) + "）", 0, "miss", "bonus"]);
     }
     extra = sc + personalCommission(acd, b, lines);
   }
@@ -324,16 +324,16 @@ function calc(emp, v, storePerf, monthDays){
   if (emp.type === "finance" || emp.type === "delivery"){
     if (emp.type === "delivery"){
       const trips = v.trips||0, tc = trips * R.perTrip;
-      lines.push(["送货提成（" + trips + " 趟 × " + R.perTrip + " 元）", tc]);
+      lines.push(["送货提成（" + trips + " 趟 × " + R.perTrip + " 元）", tc, "", "bonus"]);
       extra += tc;
     }
     const bonus = perfBonus(storePerf);
-    lines.push([bonus.note, bonus.amt, bonus.miss ? "miss" : ""]);
+    lines.push([bonus.note, bonus.amt, bonus.miss ? "miss" : "", "bonus"]);
     extra += bonus.amt;
   }
 
   const deduct = leaveDeduct(R, leave, monthDays, lines);
-  if (adj !== 0) lines.push([adj > 0 ? "其他补贴 / 奖励" : "其他扣款", adj]);
+  if (adj !== 0) lines.push([adj > 0 ? "其他补贴 / 奖励" : "其他扣款", adj, "", adj > 0 ? "bonus" : "deduct"]);
   return { base, extra, adj, deduct, total: r2(base + extra + adj - deduct), lines };
 }
 
@@ -550,13 +550,63 @@ document.addEventListener("input", e => {
   if (e.target.matches("input")) render();
 });
 
+/* ===================== 完整工资单分段（图片 / Word 共用） ===================== */
+// 网页上那一列是精简版；导出的工资单要让本人能自己核对，所以业绩、出勤、
+// 底薪构成全部摊开，并按「本月数据 / 固定工资 / 提成与奖金 / 扣款」四段列。
+function buildSections(emp){
+  const v = DATA[emp.id], r = RESULT[emp.id], R = RULES[emp.type];
+  const sec = [];
+  const pick = g => r.lines.filter(l => l[3] === g && l[1] !== null);
+
+  // 一、本月数据
+  const d1 = [["总店业绩", y(DATA.storePerf), ""]];
+  if (emp.type === "manager" || emp.type === "sales"){
+    const acd = v.acd||0, b = v.b||0, tot = acd + b;
+    const tier = RULES.tiers.find(t => tot >= t.min);
+    d1.push(["个人 A/C/D 类业绩", y(acd), ""]);
+    d1.push(["个人 B 类业绩", y(b), ""]);
+    d1.push(["个人业绩合计", y(tot) + (tier ? `（满 ${tier.min/WAN} 万档）` : "（未达 15 万档）"), tier ? "" : "miss"]);
+  }
+  if (emp.type === "delivery") d1.push(["送货趟数", (v.trips||0) + " 趟", ""]);
+  d1.push(["请假天数", (v.leave||0) + " 天", (v.leave||0) > R.freeDays ? "miss" : ""]);
+  d1.push(["本月天数", DATA.monthDays + " 天", ""]);
+  sec.push({ title:"本月数据", rows:d1 });
+
+  // 二、固定工资
+  const p = R.pay;
+  const d2 = [["基本工资", y(p.basic), ""]];
+  if (p.social) d2.push(["社保补贴", y(p.social), ""]);
+  if (p.attend) d2.push(["全勤奖",   y(p.attend), ""]);
+  if (p.meal)   d2.push(["中餐补助", y(p.meal), ""]);
+  sec.push({ title:"固定工资", rows:d2, sub: d2.length > 1 ? r.base : null });
+
+  // 三、提成与奖金
+  const bon = pick("bonus");
+  sec.push({
+    title:"提成与奖金",
+    rows: bon.length ? bon.map(l => [l[0], sig(l[1]), l[2]]) : [["本月无提成", "—", "miss"]],
+    sub: bon.reduce((s,l) => s + l[1], 0)
+  });
+
+  // 四、扣款
+  const ded = pick("deduct");
+  sec.push({
+    title:"扣款",
+    rows: ded.length ? ded.map(l => [l[0], sig(l[1]), l[2]]) : [["本月无扣款", "—", ""]],
+    sub: ded.length ? ded.reduce((s,l) => s + l[1], 0) : null
+  });
+
+  return sec;
+}
+
 /* ===================== 单人工资单：图片 ===================== */
 function drawSlip(emp){
   const r = RESULT[emp.id], ym = DATA.month;
   const W = 1080, PAD = 92;
-  const rows = r.lines.filter(l => l[1] !== null);
-  const ROW0 = 566, ROWH = 62;                    // 明细起始基线 / 行高
-  const H = ROW0 + rows.length * ROWH + 404;      // 高度跟着内容走，不留空白
+  const sections = buildSections(emp);
+  const ROW0 = 566, ROWH = 56, HEAD = 78, SUB = 62, GAP = 34;   // 行高 / 段标题 / 小计 / 段间距
+  const blockH = s => HEAD + s.rows.length * ROWH + (s.sub != null ? SUB : 0) + GAP;
+  const H = ROW0 + sections.reduce((h,s) => h + blockH(s), 0) + 300;
 
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
@@ -610,22 +660,48 @@ function drawSlip(emp){
   x.fillRect(PAD, 490, W - PAD*2, 1);
 
   let yy = ROW0;
-  rows.forEach(([t, v, cls]) => {
-    x.font = F(400, 27);
-    x.fillStyle = cls === "miss" ? "#B4746A" : "#6E645C";
-    x.textAlign = "left";
-    let label = t;
-    while (x.measureText(label).width > W - PAD*2 - 260 && label.length > 6)
-      label = label.slice(0, -2) + "…";
-    x.fillText(label, PAD, yy);
+  sections.forEach(s => {
+    // 段标题
+    track(s.title, PAD, yy, 7, F(500, 23), "#B2914F");
+    x.fillStyle = "rgba(178,145,79,.28)";
+    x.fillRect(PAD, yy + 22, W - PAD*2, 1);
+    yy += HEAD;
 
-    x.font = F(500, 29);
-    x.fillStyle = v < 0 ? "#B4746A" : (cls === "miss" ? "#B4746A" : "#17130F");
-    x.textAlign = "right";
-    x.fillText(sig(v), W - PAD, yy);
-    yy += ROWH;
+    s.rows.forEach(([t, val, cls]) => {
+      // 先量右边数值实际占多宽，剩下的才是标签的地方，避免一刀切截断
+      x.font = F(500, 28);
+      const valW = x.measureText(val).width;
+      x.fillStyle = String(val).startsWith("-") ? "#B4746A"
+                  : (cls === "miss" ? "#B4746A" : "#17130F");
+      x.textAlign = "right";
+      x.fillText(val, W - PAD, yy);
+
+      x.font = F(400, 26);
+      x.fillStyle = cls === "miss" ? "#B4746A" : "#6E645C";
+      x.textAlign = "left";
+      const room = W - PAD*2 - valW - 36;
+      let label = t;
+      while (x.measureText(label).width > room && label.length > 6)
+        label = label.slice(0, -2) + "…";
+      x.fillText(label, PAD, yy);
+      yy += ROWH;
+    });
+
+    if (s.sub != null){
+      x.fillStyle = "rgba(23,19,15,.08)";
+      x.fillRect(PAD, yy - 30, W - PAD*2, 1);
+      x.font = F(400, 24); x.fillStyle = "#A79B92"; x.textAlign = "left";
+      x.fillText("小计", PAD, yy + 8);
+      x.font = F(600, 28);
+      x.fillStyle = s.sub < 0 ? "#B4746A" : "#17130F";
+      x.textAlign = "right";
+      x.fillText(sig(s.sub), W - PAD, yy + 8);
+      yy += SUB;
+    }
+    yy += GAP;
   });
 
+  yy -= GAP;
   yy += 26;
   const grd = x.createLinearGradient(PAD, 0, W - PAD, 0);
   grd.addColorStop(0, "#E6BEC0"); grd.addColorStop(.5, "#D9C08A"); grd.addColorStop(1, "rgba(217,192,138,0)");
@@ -665,11 +741,16 @@ document.getElementById("veil").addEventListener("click", e => {
 function saveWord(id){
   const emp = STAFF.find(e => e.id === id);
   const r = RESULT[emp.id];
-  const rows = r.lines.filter(l => l[1] !== null)
-    .map(([t,v,cls]) => `<tr>
-        <td style="padding:9px 0;color:${cls==="miss"?"#B4746A":"#5b524b"};border-bottom:1px solid #eee5e2">${t}</td>
-        <td style="padding:9px 0;text-align:right;color:${v<0?"#B4746A":"#17130F"};border-bottom:1px solid #eee5e2">${sig(v)}</td>
-      </tr>`).join("");
+  const rows = buildSections(emp).map(s => `
+      <tr><td colspan="2" style="padding:20px 0 6px;color:#B2914F;font-size:12px;letter-spacing:3px;border-bottom:1px solid #E4D3AE">${s.title}</td></tr>
+      ${s.rows.map(([t,val,cls]) => `<tr>
+        <td style="padding:8px 0;color:${cls==="miss"?"#B4746A":"#5b524b"};border-bottom:1px solid #f0e9e6">${t}</td>
+        <td style="padding:8px 0;text-align:right;color:${String(val).startsWith("-")||cls==="miss"?"#B4746A":"#17130F"};border-bottom:1px solid #f0e9e6">${val}</td>
+      </tr>`).join("")}
+      ${s.sub != null ? `<tr>
+        <td style="padding:8px 0;color:#8a8078">小计</td>
+        <td style="padding:8px 0;text-align:right;font-weight:bold;color:${s.sub<0?"#B4746A":"#17130F"}">${sig(s.sub)}</td>
+      </tr>` : ""}`).join("");
 
   const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
