@@ -2,7 +2,15 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FCF8F6">
+<meta name="format-detection" content="telephone=no">
+<!-- 可「添加到主屏幕」，打开后没有浏览器地址栏，像个 App -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TSMP 工资单">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FBF3F1'/%3E%3Ctext x='32' y='42' font-family='Georgia,serif' font-size='26' fill='%23A9873F' text-anchor='middle'%3ET%3C/text%3E%3C/svg%3E">
 <title>TSMP 工资单</title>
 <style>
   :root{
@@ -19,9 +27,11 @@
     --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;margin:0;padding:0;overflow:hidden}
+  html,body{height:100%;margin:0;padding:0;overflow:hidden;overscroll-behavior:none}
   html{background:linear-gradient(180deg,var(--bg) 0%,var(--bg) 45%,var(--bg2) 100%)}
   body{
+    /* dvh 跟着 iOS 地址栏伸缩走，避免底部按钮被工具栏盖住 */
+    height:100dvh;
     max-width:560px;margin:0 auto;      /* 手机为主，桌面上不摊太开 */
     color:var(--ink);
     font:400 15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB",sans-serif;
@@ -54,8 +64,10 @@
   }
   .month{position:relative}
   .month input{
-    appearance:none;border:0;background:transparent;font:inherit;font-size:13px;
-    color:var(--ink2);text-align:right;padding:2px 0;letter-spacing:0
+    /* 16px 是底线：iOS Safari 上小于 16px 的输入框一聚焦就整页放大 */
+    appearance:none;border:0;background:transparent;font:inherit;font-size:16px;
+    color:var(--ink2);text-align:right;padding:2px 0;letter-spacing:-.02em;
+    min-height:32px
   }
   .month input:focus{outline:none;color:var(--gold)}
   .days{font-size:11px;color:var(--ink3);text-align:right;margin-top:1px}
@@ -67,11 +79,12 @@
   .tabs{display:flex;gap:22px;width:max-content;padding:0 22px}
   .tab{
     font-size:15px;color:var(--ink3);white-space:nowrap;cursor:pointer;
-    padding:3px 0;position:relative;transition:color .25s
+    padding:10px 0;position:relative;transition:color .25s;   /* 加高热区，手指好点 */
+    -webkit-user-select:none;user-select:none
   }
   .tab.on{color:var(--ink);font-weight:600}
   .tab.on::after{
-    content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:-3px;
+    content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:4px;
     width:14px;height:2px;border-radius:2px;
     background:linear-gradient(90deg,var(--pink),var(--gold))
   }
@@ -101,7 +114,8 @@
   .f input{
     width:100%;border:0;background:transparent;padding:2px 0 0;
     font:600 19px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC",sans-serif;
-    color:var(--ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums
+    color:var(--ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+    min-height:30px;scroll-margin:90px 0        /* 键盘弹起时自动滚出来，留点余量 */
   }
   .f input:focus{outline:none}
   .f:focus-within{border-bottom-color:var(--gold)}
@@ -136,9 +150,10 @@
   /* ---------- 按钮 ---------- */
   .acts{display:flex;gap:10px;margin-top:16px}
   button{
-    flex:1;padding:13px 10px;border-radius:14px;border:0;cursor:pointer;
+    flex:1;padding:13px 10px;min-height:48px;border-radius:14px;border:0;cursor:pointer;
     font:500 14px/1 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
-    letter-spacing:.02em;transition:transform .12s,opacity .12s
+    letter-spacing:.02em;transition:transform .12s,opacity .12s;
+    -webkit-user-select:none;user-select:none;touch-action:manipulation
   }
   button:active{transform:scale(.975);opacity:.85}
   .b-gold{background:linear-gradient(135deg,#CBAE6E,#A9873F);color:#fff}
@@ -164,7 +179,12 @@
     flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:26px
   }
   .veil.on{display:flex}
-  .veil img{max-width:100%;max-height:70vh;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .veil{padding-bottom:calc(26px + var(--safe-b))}
+  .veil img{
+    max-width:100%;max-height:66vh;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4);
+    /* 保证 iOS 上长按能弹出「存储到照片」 */
+    -webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto
+  }
   .veil .tip{color:rgba(255,255,255,.72);font-size:12.5px;text-align:center;line-height:1.7}
   .veil .vacts{display:flex;gap:10px;width:100%;max-width:340px}
   .veil a.dl{
@@ -172,6 +192,27 @@
     background:linear-gradient(135deg,#CBAE6E,#A9873F);color:#fff;font-size:14px;font-weight:500
   }
   .veil button{background:rgba(255,255,255,.14);color:#fff}
+
+  /* iPhone SE 这类窄屏：输入框改单列，标签不挤成两行 */
+  @media (max-width:359px){
+    .fields{grid-template-columns:1fr}
+    h2{font-size:24px}
+    .total .amt{font-size:34px}
+    table{font-size:12px}
+    th,td{padding:8px 2px}
+  }
+  /* 横屏高度很紧：收掉留白和规则说明，明细区照常内部滚动 */
+  @media (max-height:520px) and (orientation:landscape){
+    header{padding-top:calc(env(safe-area-inset-top,0px) + 8px);padding-bottom:2px}
+    nav{padding:0 0 6px}
+    .tab{padding:6px 0}
+    h2{font-size:22px;margin:2px 0 0}
+    .rule{display:none}
+    .fields{margin-top:8px}
+    .lines{margin-top:12px}
+    .total .amt{font-size:32px}
+    .acts{margin-top:12px}
+  }
 
   @media print{
     html,body{overflow:visible;height:auto;background:#fff}
@@ -380,7 +421,8 @@ document.getElementById("deck").innerHTML = PAGES.map(p => {
       <div class="fields">
         <div class="f" style="grid-column:1/-1">
           <label>本月总店业绩（元）</label>
-          <input type="number" id="storePerf" min="0" step="1000" placeholder="0" inputmode="numeric">
+          <input type="number" id="storePerf" min="0" step="1000" placeholder="0"
+                 inputmode="numeric" enterkeyhint="done">
         </div>
       </div>
       <div class="lines" id="storeLines"></div>
@@ -417,9 +459,12 @@ document.getElementById("deck").innerHTML = PAGES.map(p => {
         ${FIELDS[e.type].map(([k,l,money]) => `
           <div class="f">
             <label>${l}${money?"（元）":""}</label>
+            <!-- 其他增减要能填负数，故意不设 inputmode：
+                 iOS 上一旦设成 numeric 就是纯数字小键盘，打不出减号 -->
             <input type="number" step="${money?1000:1}" ${k==="leave"?'min="0"':""}
-                   inputmode="${money?"numeric":"numeric"}"
-                   data-emp="${e.id}" data-k="${k}" placeholder="0">
+                   ${k==="adj" ? "" : 'inputmode="numeric" min="0"'}
+                   data-emp="${e.id}" data-k="${k}" placeholder="0"
+                   enterkeyhint="done">
           </div>`).join("")}
       </div>
       <div class="lines" id="out-${e.id}"></div>
@@ -548,6 +593,10 @@ function render(){
 
 document.addEventListener("input", e => {
   if (e.target.matches("input")) render();
+});
+// 手机上按「完成」收起键盘
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.matches("input")) e.target.blur();
 });
 
 /* ===================== 完整工资单分段（图片 / Word 共用） ===================== */
