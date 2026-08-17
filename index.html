@@ -164,10 +164,11 @@ const RULES = {
     perTrip: 15                         // 每趟 15 元
   },
 
-  // 财务 / 配送 共用的业绩奖金：每满 10 万
+  // 财务 / 配送 共用的业绩奖金：每满 10 万算一格，零头不算
+  // 满 60 万后单价翻倍，且是全部格子都按 200（70 万 = 7 × 200 = 1400）
   perfBonus: [
-    { min: 600000, per100k: 200 },
-    { min: 400000, per100k: 100 }
+    { min: 600000, per100k: 200 },   // 满 60 万：每 10 万 200
+    { min: 400000, per100k: 100 }    // 满 40 万：每 10 万 100
   ]
 };
 
@@ -193,10 +194,16 @@ const STAFF = [
 /* ============ 计算 ============ */
 const r2 = n => Math.round(n*100)/100;                     // 浮点误差修到分
 const y = n => "¥" + r2(n).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
-const perfBonus = p => {
-  for (const t of RULES.perfBonus) if (p >= t.min) return Math.floor(p/100000) * t.per100k;
-  return 0;
-};
+// 业绩奖金：返回金额和明细文案
+function perfBonus(p){
+  for (const t of RULES.perfBonus){
+    if (p < t.min) continue;
+    const units = Math.floor(p/100000);
+    return { amt: units * t.per100k, note: `业绩奖金（${units} 个 10 万 × ${t.per100k} 元）` };
+  }
+  const need = RULES.perfBonus[RULES.perfBonus.length-1].min;
+  return { amt: 0, note: `业绩奖金 — 总店未达 ${need/WAN} 万，无奖金`, miss: true };
+}
 
 // 个人业绩提成：店长、销售共用
 function personalCommission(acd, b, lines){
@@ -269,13 +276,8 @@ function calc(emp, v, storePerf, monthDays){
       extra += tc;
     }
     const bonus = perfBonus(storePerf);
-    if (bonus > 0){
-      const per = storePerf >= 600000 ? 200 : 100;
-      lines.push(["业绩奖金（" + Math.floor(storePerf/100000) + " 个 10 万 × " + per + " 元）", bonus]);
-    } else {
-      lines.push(["业绩奖金 — 总店未达 40 万，无奖金", 0, "miss"]);
-    }
-    extra += bonus;
+    lines.push([bonus.note, bonus.amt, bonus.miss ? "miss" : ""]);
+    extra += bonus.amt;
   }
 
   const deduct = leaveDeduct(R0, leave, monthDays, lines);
@@ -294,8 +296,8 @@ const FIELDS = {
 const RULETEXT = {
   manager:  "底薪 8,000 ｜ 总店满 60 万才有总店提成：总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 请假第 1 天起按 8,000 ÷ 当月天数扣",
   sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 每月 2 天正常休息，超出先扣全勤 500，再按 4,000 ÷ 当月天数扣天",
-  finance:  "底薪 6,800 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100；不满 40 万无奖金 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 6,700 ÷ 当月天数扣天",
-  delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣天"
+  finance:  "底薪 6,800 ｜ 总店满 40 万：每 10 万奖 100（40 万 = 400）；满 60 万翻倍：每 10 万奖 200（70 万 = 1,400）；不满 40 万无奖金 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 6,700 ÷ 当月天数扣天",
+  delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 40 万：每 10 万奖 100；满 60 万翻倍：每 10 万奖 200 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣天"
 };
 
 const KEY = "gc-salary-v3";   // v3 起业绩填回元，旧存档单位不同，不复用
