@@ -2,199 +2,262 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>工资核算 · GC</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>TSMP 工资单</title>
 <style>
   :root{
-    --bg:#f6f4f0; --card:#fff; --ink:#1c1a17; --ink2:#6b6459; --line:#e3ded5;
-    --accent:#174d3a; --accent-soft:#e8f0eb; --gold:#a8863f; --warn:#b4462f;
-    --radius:14px;
+    --bg:#FCF8F6;
+    --bg2:#F7EAE8;
+    --ink:#17130F;
+    --ink2:#6E645C;
+    --ink3:#A79B92;
+    --pink:#E6BEC0;
+    --pink-soft:#F8EAE9;
+    --gold:#B2914F;
+    --gold-lite:#D9C08A;
+    --hair:rgba(23,19,15,.09);
+    --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0}
+  html,body{height:100%;margin:0;padding:0;overflow:hidden}
+  html{background:linear-gradient(180deg,var(--bg) 0%,var(--bg) 45%,var(--bg2) 100%)}
   body{
-    background:var(--bg); color:var(--ink);
-    font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-    padding:20px 16px 60px; max-width:940px; margin:0 auto;
+    max-width:560px;margin:0 auto;      /* 手机为主，桌面上不摊太开 */
+    color:var(--ink);
+    font:400 15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;
+    letter-spacing:-.01em;
   }
-  h1{font-size:22px;margin:0 0 4px;letter-spacing:.5px}
-  .sub{color:var(--ink2);font-size:13px;margin:0 0 22px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 16px 14px;margin-bottom:14px}
-  .card h2{font-size:16px;margin:0 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .tag{font-size:11px;font-weight:400;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:2px 9px}
-  .rule{font-size:12px;color:var(--ink2);margin:0 0 12px;line-height:1.7}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-  label{display:block;font-size:12px;color:var(--ink2);margin-bottom:4px}
-  input[type=number]{
-    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
-    font-size:16px;background:#fcfbf9;color:var(--ink);font-variant-numeric:tabular-nums;
+
+  /* ---------- 顶部 ---------- */
+  header{padding:calc(env(safe-area-inset-top,0px) + 18px) 22px 10px;flex:none}
+  .brand{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+
+  /* 字标：Didone 衬线 + 金箔渐变 + 发丝线 + 宋体 */
+  .wordmark{display:inline-block;padding-top:2px}
+  .wm-en{
+    font:400 30px/1 "Didot","Bodoni 72","Bodoni 72 Oldstyle","Playfair Display",
+         Georgia,"Times New Roman",serif;
+    letter-spacing:.3em;text-indent:.3em;
+    background:linear-gradient(102deg,#E7D2A0 0%,#B2914F 34%,#8C6C2C 52%,#D9BE7E 74%,#A9873F 100%);
+    -webkit-background-clip:text;background-clip:text;
+    color:transparent;-webkit-text-fill-color:transparent;
   }
-  input[type=number]:focus{outline:none;border-color:var(--accent);background:#fff}
-  input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .wm-rule{
+    height:1px;margin:6px 0 5px;
+    background:linear-gradient(90deg,rgba(178,145,79,.85) 0%,rgba(230,190,192,.9) 42%,rgba(178,145,79,0) 100%)
+  }
+  .wm-cn{
+    font:400 10px/1 "Songti SC","STSong","Source Han Serif SC",serif;
+    letter-spacing:.56em;text-indent:.56em;color:var(--ink3)
+  }
+  .month{position:relative}
+  .month input{
+    appearance:none;border:0;background:transparent;font:inherit;font-size:13px;
+    color:var(--ink2);text-align:right;padding:2px 0;letter-spacing:0
+  }
+  .month input:focus{outline:none;color:var(--gold)}
+  .days{font-size:11px;color:var(--ink3);text-align:right;margin-top:1px}
+
+  /* ---------- 人名导航 ---------- */
+  nav{flex:none;overflow-x:auto;scrollbar-width:none;padding:6px 0 12px}
+  nav::-webkit-scrollbar{display:none}
+  /* 左右内边距放在内层，否则末尾的 padding 不计入 scrollWidth，最后一个标签会被切 */
+  .tabs{display:flex;gap:22px;width:max-content;padding:0 22px}
+  .tab{
+    font-size:15px;color:var(--ink3);white-space:nowrap;cursor:pointer;
+    padding:3px 0;position:relative;transition:color .25s
+  }
+  .tab.on{color:var(--ink);font-weight:600}
+  .tab.on::after{
+    content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:-3px;
+    width:14px;height:2px;border-radius:2px;
+    background:linear-gradient(90deg,var(--pink),var(--gold))
+  }
+
+  /* ---------- 滑动区 ---------- */
+  .deck{
+    flex:1;display:flex;overflow-x:auto;overflow-y:hidden;
+    scroll-snap-type:x mandatory;scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain
+  }
+  .deck::-webkit-scrollbar{display:none}
+  .slide{
+    flex:0 0 100%;width:100%;scroll-snap-align:center;scroll-snap-stop:always;
+    padding:4px 22px calc(18px + var(--safe-b));
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    display:flex;flex-direction:column
+  }
+
+  h2{font-size:27px;font-weight:600;letter-spacing:-.03em;margin:6px 0 2px}
+  .role{font-size:12px;color:var(--gold);letter-spacing:.16em;margin-bottom:2px}
+  .rule{font-size:11.5px;line-height:1.7;color:var(--ink3);margin:8px 0 0;letter-spacing:0}
+
+  /* ---------- 输入 ---------- */
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:2px 18px;margin-top:14px}
+  .f{padding:8px 0;border-bottom:1px solid var(--hair)}
+  .f label{display:block;font-size:11px;color:var(--ink3);letter-spacing:.02em}
+  .f input{
+    width:100%;border:0;background:transparent;padding:2px 0 0;
+    font:600 19px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC",sans-serif;
+    color:var(--ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums
+  }
+  .f input:focus{outline:none}
+  .f:focus-within{border-bottom-color:var(--gold)}
+  .f input::placeholder{color:#D8CFC8}
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   input[type=number]{-moz-appearance:textfield}
-  .out{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;font-size:13px}
-  .row{display:flex;justify-content:space-between;gap:12px;padding:3px 0;color:var(--ink2)}
-  .row span:last-child{font-variant-numeric:tabular-nums;color:var(--ink)}
-  .row.total{border-top:1px solid var(--line);margin-top:8px;padding-top:9px;font-size:16px;font-weight:600;color:var(--ink)}
-  .row.total span:last-child{color:var(--accent)}
-  .row.muted span:last-child{color:var(--ink2)}
-  .miss{color:var(--warn)}
-  .store{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .store h2,.store .rule{color:#fff}
-  .store .rule{opacity:.75}
-  .store label{color:rgba(255,255,255,.75)}
-  .store input[type=number]{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:#fff}
-  .store input[type=number]:focus{background:rgba(255,255,255,.2);border-color:#fff}
-  .sum{background:#1c1a17;color:#fff;border-color:#1c1a17}
-  .sum h2{color:#fff}
-  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .sum table{width:100%;min-width:290px;border-collapse:collapse;font-size:13px;margin-top:8px}
-  .neg{color:var(--warn)}
-  .sum td.neg{color:#ff9b86}
-  .sum th,.sum td{padding:7px 4px;text-align:right;border-bottom:1px solid rgba(255,255,255,.12);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .sum th{color:rgba(255,255,255,.6);font-weight:400;font-size:11px}
-  .sum th:first-child,.sum td:first-child{text-align:left}
-  .sum tfoot td{border-bottom:none;font-weight:600;font-size:15px;padding-top:10px}
-  .sum tfoot td:last-child{color:var(--gold)}
-  .btns{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+
+  /* ---------- 明细 ---------- */
+  .lines{margin-top:20px}
+  .ln{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:6px 0;font-size:13.5px}
+  .ln .t{color:var(--ink2);letter-spacing:0}
+  .ln .v{font-variant-numeric:tabular-nums;font-weight:500;white-space:nowrap}
+  .ln.note .t{color:var(--ink3);font-size:12.5px}
+  .ln.miss .t,.ln.miss .v{color:#B4746A}
+  .ln .v.neg{color:#B4746A}
+
+  .total{
+    margin-top:auto;padding-top:16px;position:relative;
+    display:flex;align-items:flex-end;justify-content:space-between;gap:12px
+  }
+  .total::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,var(--pink),var(--gold-lite),transparent)
+  }
+  .total .lab{font-size:12px;color:var(--ink3);letter-spacing:.18em;padding-bottom:6px}
+  .total .amt{
+    font:300 40px/1 -apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC",sans-serif;
+    letter-spacing:-.035em;color:var(--gold);font-variant-numeric:tabular-nums
+  }
+
+  /* ---------- 按钮 ---------- */
+  .acts{display:flex;gap:10px;margin-top:16px}
   button{
-    flex:1;min-width:120px;padding:11px;border-radius:10px;border:1px solid var(--line);
-    background:#fff;color:var(--ink);font-size:14px;cursor:pointer;font-family:inherit
+    flex:1;padding:13px 10px;border-radius:14px;border:0;cursor:pointer;
+    font:500 14px/1 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+    letter-spacing:.02em;transition:transform .12s,opacity .12s
   }
-  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-  button:active{opacity:.7}
-  .foot{font-size:11px;color:var(--ink2);text-align:center;margin-top:26px;line-height:1.9}
-  @media (max-width:430px){
-    .sum table{font-size:12px}
-    .sum th,.sum td{padding:7px 3px}
+  button:active{transform:scale(.975);opacity:.85}
+  .b-gold{background:linear-gradient(135deg,#CBAE6E,#A9873F);color:#fff}
+  .b-pink{background:var(--pink-soft);color:#8C5F5C}
+  .b-ghost{background:rgba(23,19,15,.05);color:var(--ink2)}
+
+  /* ---------- 汇总 ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:14px}
+  th,td{padding:9px 3px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;
+        border-bottom:1px solid var(--hair)}
+  th{font-size:10.5px;font-weight:400;color:var(--ink3);letter-spacing:.06em}
+  th:first-child,td:first-child{text-align:left}
+  td.neg{color:#B4746A}
+  tfoot td{border:0;padding-top:14px;font-weight:600;font-size:16px}
+  tfoot td:last-child{color:var(--gold)}
+
+  .hint{font-size:11px;color:var(--ink3);text-align:center;margin-top:14px;line-height:1.8;letter-spacing:0}
+
+  /* ---------- 图片预览浮层 ---------- */
+  .veil{
+    position:fixed;inset:0;z-index:50;display:none;
+    background:rgba(20,16,13,.72);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+    flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:26px
   }
+  .veil.on{display:flex}
+  .veil img{max-width:100%;max-height:70vh;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .veil .tip{color:rgba(255,255,255,.72);font-size:12.5px;text-align:center;line-height:1.7}
+  .veil .vacts{display:flex;gap:10px;width:100%;max-width:340px}
+  .veil a.dl{
+    flex:1;text-align:center;padding:13px;border-radius:14px;text-decoration:none;
+    background:linear-gradient(135deg,#CBAE6E,#A9873F);color:#fff;font-size:14px;font-weight:500
+  }
+  .veil button{background:rgba(255,255,255,.14);color:#fff}
+
   @media print{
-    body{padding:0;max-width:none}
-    .card{break-inside:avoid;border-color:#ccc}
-    .btns,.foot{display:none}
-    .store,.sum{background:#fff!important;color:#000!important;border-color:#ccc!important}
-    .store h2,.store .rule,.store label,.sum h2{color:#000!important}
-    .sum th,.sum td{border-color:#ddd!important;color:#000!important}
-    .sum tfoot td:last-child{color:#000!important}
+    html,body{overflow:visible;height:auto;background:#fff}
+    header,nav,.acts,.hint,.veil,.fields{display:none!important}
+    .deck{display:block;overflow:visible}
+    .slide{width:auto;padding:0 0 26px;break-inside:avoid;overflow:visible}
+    .total .amt{color:#000}
   }
 </style>
 </head>
 <body>
 
-<h1>工资核算</h1>
-<p class="sub">业绩一律填<b>元</b>（62 万 8 千就填 628000）。数据只存在你自己的浏览器里，不上传。</p>
-
-<div class="card store">
-  <h2>本月总数</h2>
-  <p class="rule">总店业绩：店长的总店提成、财务与配送的业绩奖金都以它为基数。<br>本月天数：请假扣款的日薪就是拿它去除（3 月填 31、4 月填 30、2 月填 28）。</p>
-  <div class="grid">
-    <div>
-      <label>本月总店业绩（元）</label>
-      <input type="number" id="storePerf" min="0" step="1000" placeholder="0">
+<header>
+  <div class="brand">
+    <div class="wordmark">
+      <div class="wm-en">TSMP</div>
+      <div class="wm-rule"></div>
+      <div class="wm-cn">工资单</div>
     </div>
     <div>
-      <label>本月天数</label>
-      <input type="number" id="monthDays" min="28" max="31" step="1">
+      <div class="month"><input type="month" id="month"></div>
+      <div class="days" id="daysTip">本月 30 天</div>
     </div>
   </div>
-</div>
+</header>
 
-<!-- 员工卡片由 JS 渲染 -->
-<div id="staff"></div>
+<nav><div class="tabs" id="tabs"></div></nav>
 
-<div class="card sum">
-  <h2>本月汇总</h2>
-  <div class="scroll">
-  <table>
-    <thead>
-      <tr><th>姓名</th><th>底薪</th><th>提成/奖金</th><th>扣减</th><th>实发</th></tr>
-    </thead>
-    <tbody id="sumBody"></tbody>
-    <tfoot><tr><td>合计</td><td></td><td></td><td></td><td id="sumAll">¥0</td></tr></tfoot>
-  </table>
+<div class="deck" id="deck"></div>
+
+<div class="veil" id="veil">
+  <img id="veilImg" alt="工资单">
+  <div class="tip">长按图片可直接保存到相册<br>或点下方按钮下载</div>
+  <div class="vacts">
+    <a class="dl" id="veilDl" download>保存图片</a>
+    <button onclick="closeVeil()">关闭</button>
   </div>
 </div>
-
-<div class="btns">
-  <button class="primary" onclick="window.print()">打印 / 存 PDF</button>
-  <button onclick="copyText()">复制明细</button>
-  <button onclick="resetAll()">清空重填</button>
-</div>
-
-<p class="foot">
-  个人提成门槛与比例：店长、销售一视同仁，个人业绩满 15 万起提，满 20 万跳高档。<br>
-  财务与配送的业绩奖金按「每满 10 万」计一次，不足 10 万的零头不计。<br>
-  请假扣款的日薪基数不含全勤奖（全勤奖是超 2 天时整笔扣掉的）。
-</p>
 
 <script>
-/* ============ 规则配置：改这里就行 ============ */
-const WAN = 10000;                      // 只用来把档位门槛写成「20 万档」这种文案
+/* ===================== 规则配置 ===================== */
+const WAN = 10000;
 
 const RULES = {
-  store: { rate: 0.001, min: 600000 },  // 总店提成：千分之一，总店满 60 万才有
+  store: { rate: 0.001, min: 600000 },   // 店长总店提成：千分之一，总店满 60 万才有
 
-  // 个人业绩提成：店长和销售用同一套档位
-  tiers: [                              // 从高到低匹配
-    { min: 200000, acd: 0.02, b: 0.01  },   // 满 20 万：A/C/D 2%，B 1%
-    { min: 150000, acd: 0.01, b: 0.005 }    // 满 15 万：A/C/D 1%，B 0.5%
+  tiers: [                               // 个人业绩提成，店长与销售共用
+    { min: 200000, acd: 0.02, b: 0.01  },
+    { min: 150000, acd: 0.01, b: 0.005 }
   ],
-  floor: 150000,                        // 个人业绩低于此额度无提成
+  floor: 150000,
 
-  // 各岗位工资构成。日薪基数 =（基本 + 社保 + 中餐），不含全勤奖
-  // freeDays：每月正常休息天数，请假在这个数以内不扣
-  manager: {                            // 店长
-    pay: { basic: 8000, social: 0, attend: 0, meal: 0 },
-    freeDays: 0
-  },
+  manager:  { pay:{ basic:8000, social:0,    attend:0,   meal:0   }, freeDays:0 },
+  sales:    { pay:{ basic:2500, social:1200, attend:500, meal:300 }, freeDays:2 },
+  finance:  { pay:{ basic:5200, social:1200, attend:100, meal:300 }, freeDays:2 },
+  delivery: { pay:{ basic:4200, social:1200, attend:100, meal:300 }, freeDays:2, perTrip:15 },
 
-  sales: {                              // 销售
-    pay: { basic: 2500, social: 1200, attend: 500, meal: 300 },
-    freeDays: 2
-  },
-
-  finance: {                            // 财务
-    pay: { basic: 5200, social: 1200, attend: 100, meal: 300 },
-    freeDays: 2
-  },
-
-  delivery: {                           // 配送
-    pay: { basic: 4200, social: 1200, attend: 100, meal: 300 },
-    freeDays: 2,
-    perTrip: 15                         // 每趟 15 元
-  },
-
-  // 财务 / 配送 共用的业绩奖金：每满 10 万算一格，零头不算
-  // 满 60 万后单价翻倍，且是全部格子都按 200（70 万 = 7 × 200 = 1400）
+  // 财务 / 配送 业绩奖金：每满 10 万一格，零头不算；满 60 万后全部格子按 200
   perfBonus: [
-    { min: 600000, per100k: 200 },   // 满 60 万：每 10 万 200
-    { min: 400000, per100k: 100 }    // 满 40 万：每 10 万 100
+    { min: 600000, per100k: 200 },
+    { min: 400000, per100k: 100 }
   ]
 };
 
-// 由工资构成推导出：底薪合计、构成说明、日薪基数（不含全勤奖）
 ["manager","sales","finance","delivery"].forEach(t => {
   const p = RULES[t].pay, n = x => x.toLocaleString("zh-CN");
   RULES[t].base = p.basic + p.social + p.attend + p.meal;
-  RULES[t].dailyBase = p.basic + p.social + p.meal;
+  RULES[t].dailyBase = p.basic + p.social + p.meal;      // 日薪基数不含全勤奖
   RULES[t].baseNote = (p.social || p.attend || p.meal)
     ? `基本 ${n(p.basic)} + 社保 ${n(p.social)} + 全勤 ${n(p.attend)} + 中餐 ${n(p.meal)}`
     : `基本工资 ${n(p.basic)}`;
 });
 
-/* ============ 员工名单：加人删人改这里 ============ */
 const STAFF = [
-  { id:"wuxuan",   name:"吴璇",   role:"店长", type:"manager" },
-  { id:"xiaoxue",  name:"小雪",   role:"销售", type:"sales"   },
-  { id:"xiaotao",  name:"小桃",   role:"销售", type:"sales"   },
-  { id:"zhugk",    name:"朱国坤", role:"财务", type:"finance" },
-  { id:"qiujb",    name:"邱家斌", role:"配送", type:"delivery"}
+  { id:"wuxuan",  name:"吴璇",   role:"店长", type:"manager"  },
+  { id:"xiaoxue", name:"小雪",   role:"销售", type:"sales"    },
+  { id:"xiaotao", name:"小桃",   role:"销售", type:"sales"    },
+  { id:"zhugk",   name:"朱国坤", role:"财务", type:"finance"  },
+  { id:"qiujb",   name:"邱家斌", role:"配送", type:"delivery" }
 ];
 
-/* ============ 计算 ============ */
-const r2 = n => Math.round(n*100)/100;                     // 浮点误差修到分
-const y = n => "¥" + r2(n).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
-// 业绩奖金：返回金额和明细文案
+/* ===================== 计算 ===================== */
+const r2 = n => Math.round(n*100)/100;
+const y  = n => "¥" + r2(n).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
+const sig = n => (n<0 ? "-" + y(-n) : y(n));
+
 function perfBonus(p){
   for (const t of RULES.perfBonus){
     if (p < t.min) continue;
@@ -205,7 +268,6 @@ function perfBonus(p){
   return { amt: 0, note: `业绩奖金 — 总店未达 ${need/WAN} 万，无奖金`, miss: true };
 }
 
-// 个人业绩提成：店长、销售共用
 function personalCommission(acd, b, lines){
   const total = acd + b;
   const tier = RULES.tiers.find(t => total >= t.min);
@@ -220,7 +282,6 @@ function personalCommission(acd, b, lines){
   return ca + cb;
 }
 
-// 请假扣款：超出每月正常休息天数的部分，先扣全勤奖，再按日薪扣天
 function leaveDeduct(R, days, monthDays, lines){
   if (days <= 0) return 0;
   const n = x => x.toLocaleString("zh-CN");
@@ -241,14 +302,13 @@ function leaveDeduct(R, days, monthDays, lines){
 
 function calc(emp, v, storePerf, monthDays){
   const acd = v.acd||0, b = v.b||0, adj = v.adj||0, leave = v.leave||0;
-  const R0 = RULES[emp.type];
+  const R = RULES[emp.type];
   const lines = [];
-  let base = 0, extra = 0;
+  let extra = 0;
+  const base = R.base;
+  lines.push(["底薪（" + R.baseNote + "）", base]);
 
   if (emp.type === "manager"){
-    base = RULES.manager.base;
-    lines.push(["底薪（" + RULES.manager.baseNote + "）", base]);
-    // 总店提成：总店业绩没到门槛就没有这一项，个人提成照算
     let sc = 0;
     if (storePerf >= RULES.store.min){
       sc = r2(storePerf * RULES.store.rate);
@@ -259,19 +319,11 @@ function calc(emp, v, storePerf, monthDays){
     extra = sc + personalCommission(acd, b, lines);
   }
 
-  if (emp.type === "sales"){
-    base = RULES.sales.base;
-    lines.push(["底薪（" + RULES.sales.baseNote + "）", base]);
-    extra = personalCommission(acd, b, lines);
-  }
+  if (emp.type === "sales") extra = personalCommission(acd, b, lines);
 
   if (emp.type === "finance" || emp.type === "delivery"){
-    const R = RULES[emp.type];
-    base = R.base;
-    lines.push(["底薪（" + R.baseNote + "）", base]);
     if (emp.type === "delivery"){
-      const trips = v.trips||0;
-      const tc = trips * R.perTrip;
+      const trips = v.trips||0, tc = trips * R.perTrip;
       lines.push(["送货提成（" + trips + " 趟 × " + R.perTrip + " 元）", tc]);
       extra += tc;
     }
@@ -280,58 +332,159 @@ function calc(emp, v, storePerf, monthDays){
     extra += bonus.amt;
   }
 
-  const deduct = leaveDeduct(R0, leave, monthDays, lines);
+  const deduct = leaveDeduct(R, leave, monthDays, lines);
   if (adj !== 0) lines.push([adj > 0 ? "其他补贴 / 奖励" : "其他扣款", adj]);
   return { base, extra, adj, deduct, total: r2(base + extra + adj - deduct), lines };
 }
 
-/* ============ 渲染 ============ */
-// [字段名, 标签, 是不是金额（金额步进 1000，天数/趟数步进 1）]
+/* ===================== 界面 ===================== */
 const FIELDS = {
-  manager:  [["acd","个人 A/C/D 类业绩（元）",1],["b","个人 B 类业绩（元）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",1]],
-  sales:    [["acd","A/C/D 类业绩（元）",1],["b","B 类业绩（元）",1],["leave","请假天数",0],["adj","其他增减（元，可负）",1]],
-  finance:  [["leave","请假天数",0],["adj","其他增减（元，可负）",1]],
-  delivery: [["trips","送货趟数",0],["leave","请假天数",0],["adj","其他增减（元，可负）",1]]
+  manager:  [["acd","A/C/D 类业绩",1],["b","B 类业绩",1],["leave","请假天数",0],["adj","其他增减",1]],
+  sales:    [["acd","A/C/D 类业绩",1],["b","B 类业绩",1],["leave","请假天数",0],["adj","其他增减",1]],
+  finance:  [["leave","请假天数",0],["adj","其他增减",1]],
+  delivery: [["trips","送货趟数",0],["leave","请假天数",0],["adj","其他增减",1]]
 };
 const RULETEXT = {
-  manager:  "底薪 8,000 ｜ 总店满 60 万才有总店提成：总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 请假第 1 天起按 8,000 ÷ 当月天数扣",
-  sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 每月 2 天正常休息，超出先扣全勤 500，再按 4,000 ÷ 当月天数扣天",
-  finance:  "底薪 6,800 ｜ 总店满 40 万：每 10 万奖 100（40 万 = 400）；满 60 万翻倍：每 10 万奖 200（70 万 = 1,400）；不满 40 万无奖金 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 6,700 ÷ 当月天数扣天",
-  delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 40 万：每 10 万奖 100；满 60 万翻倍：每 10 万奖 200 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣天"
+  manager:  "底薪 8,000　总店满 60 万提千分之一　个人满 15 万起提（15 万档 1% / 0.5%，20 万档 2% / 1%）　请假第 1 天起按 8,000 ÷ 当月天数扣",
+  sales:    "底薪 4,500　个人满 15 万起提（15 万档 1% / 0.5%，20 万档 2% / 1%）　每月 2 天正常休息，超出先扣全勤 500，再按 4,000 ÷ 当月天数扣",
+  finance:  "底薪 6,800　总店满 40 万每 10 万奖 100，满 60 万翻倍为 200（70 万 = 1,400）　每月 2 天正常休息，超出先扣全勤 100，再按 6,700 ÷ 当月天数扣",
+  delivery: "底薪 5,800　每趟 15 元　总店满 40 万每 10 万奖 100，满 60 万翻倍为 200　每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣"
 };
 
-const KEY = "gc-salary-v3";   // v3 起业绩填回元，旧存档单位不同，不复用
+const KEY = "tsmp-salary-v1";
 let saved = JSON.parse(localStorage.getItem(KEY) || "{}");
-let data = {};
+let RESULT = {};                                   // 每人最新计算结果，存图/存 Word 用
 
-document.getElementById("staff").innerHTML = STAFF.map(e => `
-  <div class="card">
-    <h2>${e.name}<span class="tag">${e.role}</span></h2>
-    <p class="rule">${RULETEXT[e.type]}</p>
-    <div class="grid">
-      ${FIELDS[e.type].map(([k,l,isMoney]) => `
-        <div>
-          <label>${l}</label>
-          <input type="number" step="${isMoney?1000:1}" ${k==='leave'?'min="0"':''} data-emp="${e.id}" data-k="${k}" placeholder="0">
-        </div>`).join("")}
-    </div>
-    <div class="out" id="out-${e.id}"></div>
-  </div>`).join("");
+const monthDaysOf = ym => { const [Y,M] = ym.split("-").map(Number); return new Date(Y, M, 0).getDate(); };
+const monthLabel  = ym => { const [Y,M] = ym.split("-"); return `${Y} 年 ${+M} 月`; };
+const fileMonth   = ym => { const [Y,M] = ym.split("-"); return `${Y}${M}`; };
 
-document.getElementById("storePerf").value = saved.storePerf ?? "";
-// 本月天数：没存过就按当前月份的实际天数填
+// 月份默认当月
 const now = new Date();
-document.getElementById("monthDays").value =
-  saved.monthDays || new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+const thisMonth = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
+document.getElementById("month").value = saved.month || thisMonth;
+
+/* ---- 建页 ---- */
+const PAGES = [{ id:"store", label:"总店" }]
+  .concat(STAFF.map(e => ({ id:e.id, label:e.name, emp:e })))
+  .concat([{ id:"sum", label:"汇总" }]);
+
+document.getElementById("tabs").innerHTML =
+  PAGES.map((p,i) => `<div class="tab${i===0?" on":""}" data-i="${i}">${p.label}</div>`).join("");
+
+document.getElementById("deck").innerHTML = PAGES.map(p => {
+  if (p.id === "store") return `
+    <section class="slide">
+      <h2>本月总数</h2>
+      <p class="rule">总店业绩决定：店长的总店提成（满 60 万）、财务与配送的业绩奖金（满 40 万）。<br>当月天数由上方月份自动带出，是请假扣款的分母。</p>
+      <div class="fields">
+        <div class="f" style="grid-column:1/-1">
+          <label>本月总店业绩（元）</label>
+          <input type="number" id="storePerf" min="0" step="1000" placeholder="0" inputmode="numeric">
+        </div>
+      </div>
+      <div class="lines" id="storeLines"></div>
+      <div class="total">
+        <div class="lab">全店工资合计</div>
+        <div class="amt" id="storeGrand">¥0</div>
+      </div>
+      <p class="hint">左右滑动查看每个人 →</p>
+    </section>`;
+
+  if (p.id === "sum") return `
+    <section class="slide">
+      <h2>本月汇总</h2>
+      <p class="rule">扣减 = 请假扣款 + 其他增减。每个人的明细在各自那一页。</p>
+      <table>
+        <thead><tr><th>姓名</th><th>底薪</th><th>提成/奖金</th><th>扣减</th><th>实发</th></tr></thead>
+        <tbody id="sumBody"></tbody>
+        <tfoot><tr><td>合计</td><td></td><td></td><td></td><td id="sumAll">¥0</td></tr></tfoot>
+      </table>
+      <div class="acts" style="margin-top:auto">
+        <button class="b-ghost" onclick="copyAll()">复制全部</button>
+        <button class="b-ghost" onclick="window.print()">打印</button>
+        <button class="b-ghost" onclick="resetAll()">清空</button>
+      </div>
+    </section>`;
+
+  const e = p.emp;
+  return `
+    <section class="slide">
+      <div class="role">${e.role}</div>
+      <h2>${e.name}</h2>
+      <p class="rule">${RULETEXT[e.type]}</p>
+      <div class="fields">
+        ${FIELDS[e.type].map(([k,l,money]) => `
+          <div class="f">
+            <label>${l}${money?"（元）":""}</label>
+            <input type="number" step="${money?1000:1}" ${k==="leave"?'min="0"':""}
+                   inputmode="${money?"numeric":"numeric"}"
+                   data-emp="${e.id}" data-k="${k}" placeholder="0">
+          </div>`).join("")}
+      </div>
+      <div class="lines" id="out-${e.id}"></div>
+      <div class="total">
+        <div class="lab">实发</div>
+        <div class="amt" id="tot-${e.id}">¥0</div>
+      </div>
+      <div class="acts">
+        <button class="b-gold" onclick="saveImage('${e.id}')">存为图片</button>
+        <button class="b-pink" onclick="saveWord('${e.id}')">存为 Word</button>
+      </div>
+    </section>`;
+}).join("");
+
+/* ---- 回填已存数据 ---- */
+document.getElementById("storePerf").value = saved.storePerf ?? "";
 document.querySelectorAll("input[data-emp]").forEach(i => {
   const v = saved[i.dataset.emp]?.[i.dataset.k];
   if (v !== undefined && v !== null) i.value = v;
 });
 
+/* ---- 滑动与导航联动 ---- */
+const deck = document.getElementById("deck");
+const tabEls = [...document.querySelectorAll(".tab")];
+function goTo(i){
+  const target = deck.clientWidth * i;
+  deck.scrollTo({ left: target, behavior:"smooth" });
+  // 有些设备/系统会忽略平滑滚动，兜底直接跳过去
+  setTimeout(() => {
+    if (Math.abs(deck.scrollLeft - target) > 4) deck.scrollTo({ left: target });
+  }, 320);
+}
+tabEls.forEach(t => t.onclick = () => goTo(+t.dataset.i));
+// 用 IntersectionObserver 跟踪当前页，比 scroll 事件可靠
+const slideEls = [...deck.querySelectorAll(".slide")];
+let currentPage = 0;
+function markPage(i){
+  if (i === currentPage) return;
+  currentPage = i;
+  tabEls.forEach((t,j) => t.classList.toggle("on", j === i));
+  const on = tabEls[i];
+  if (!on) return;
+  const bar = on.parentElement.parentElement;                 // nav
+  const want = bar.scrollLeft + on.getBoundingClientRect().left
+             - bar.getBoundingClientRect().left - (bar.clientWidth - on.offsetWidth) / 2;
+  bar.scrollTo({ left: want, behavior:"smooth" });
+  setTimeout(() => {
+    if (Math.abs(bar.scrollLeft - want) > 4) bar.scrollTo({ left: want });
+  }, 320);
+}
+const io = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    if (en.isIntersecting && en.intersectionRatio > .55)
+      markPage(slideEls.indexOf(en.target));
+  });
+}, { root: deck, threshold: [.56, .9] });
+slideEls.forEach(s => io.observe(s));
+
+/* ---- 读写 ---- */
 function readAll(){
+  const ym = document.getElementById("month").value || thisMonth;
   const d = {
+    month: ym,
     storePerf: +document.getElementById("storePerf").value || 0,
-    monthDays: +document.getElementById("monthDays").value || 30
+    monthDays: monthDaysOf(ym)
   };
   STAFF.forEach(e => d[e.id] = {});
   document.querySelectorAll("input[data-emp]").forEach(i => {
@@ -339,12 +492,10 @@ function readAll(){
   });
   return d;
 }
-
-// 存页面上原样填的数字
 function saveRaw(){
   const r = {
-    storePerf: document.getElementById("storePerf").value,
-    monthDays: document.getElementById("monthDays").value
+    month: document.getElementById("month").value,
+    storePerf: document.getElementById("storePerf").value
   };
   STAFF.forEach(e => r[e.id] = {});
   document.querySelectorAll("input[data-emp]").forEach(i => {
@@ -353,47 +504,213 @@ function saveRaw(){
   localStorage.setItem(KEY, JSON.stringify(r));
 }
 
-let lastText = "";
+const lineHTML = ([t,v,cls]) =>
+  v === null
+    ? `<div class="ln note"><span class="t">${t}</span><span class="v"></span></div>`
+    : `<div class="ln ${cls||""}"><span class="t">${t}</span><span class="v ${v<0?"neg":""}">${sig(v)}</span></div>`;
+
+let DATA = {}, allText = "";
 function render(){
-  data = readAll();
+  DATA = readAll();
   saveRaw();
-  const sp = data.storePerf, md = data.monthDays;
-  let grand = 0, rows = "", txt = "总店业绩 " + y(sp) + "｜本月 " + md + " 天\n\n";
+  const { storePerf:sp, monthDays:md, month:ym } = DATA;
+  document.getElementById("daysTip").textContent = "本月 " + md + " 天";
+
+  let grand = 0, rows = "";
+  allText = `TSMP 工资单 · ${monthLabel(ym)}\n总店业绩 ${y(sp)}｜本月 ${md} 天\n\n`;
 
   STAFF.forEach(e => {
-    const r = calc(e, data[e.id], sp, md);
+    const r = calc(e, DATA[e.id], sp, md);
+    RESULT[e.id] = r;
     grand += r.total;
-    document.getElementById("out-" + e.id).innerHTML =
-      r.lines.map(([t,v,cls]) =>
-        v === null
-          ? `<div class="row muted"><span>${t}</span><span></span></div>`
-          : `<div class="row ${cls||""}"><span class="${cls||""}">${t}</span><span class="${v<0?"neg":""}">${v<0?"-"+y(-v):y(v)}</span></div>`
-      ).join("") +
-      `<div class="row total"><span>实发合计</span><span>${y(r.total)}</span></div>`;
+    document.getElementById("out-" + e.id).innerHTML = r.lines.map(lineHTML).join("");
+    document.getElementById("tot-" + e.id).textContent = y(r.total);
 
-    // 汇总表把「请假扣款 + 其他增减」并成一列「扣减」，明细在上面各人卡片里
     const net = r2(r.adj - r.deduct);
-    rows += `<tr><td>${e.name}</td><td>${y(r.base)}</td><td>${y(r.extra)}</td><td class="${net<0?"neg":""}">${net?(net<0?"-"+y(-net):"+"+y(net)):"—"}</td><td>${y(r.total)}</td></tr>`;
-    txt += `${e.name}（${e.role}）\n` + r.lines.filter(l=>l[1]!==null).map(l=>`  ${l[0]}：${l[1]<0?"-"+y(-l[1]):y(l[1])}`).join("\n") + `\n  实发合计：${y(r.total)}\n\n`;
+    rows += `<tr><td>${e.name}</td><td>${y(r.base)}</td><td>${y(r.extra)}</td>`
+          + `<td class="${net<0?"neg":""}">${net ? sig(net) : "—"}</td><td>${y(r.total)}</td></tr>`;
+
+    allText += `${e.name}（${e.role}）\n`
+      + r.lines.filter(l => l[1] !== null).map(l => `  ${l[0]}：${sig(l[1])}`).join("\n")
+      + `\n  实发：${y(r.total)}\n\n`;
   });
 
+  document.getElementById("storeLines").innerHTML = [
+    ["总店业绩", sp],
+    ["店长总店提成门槛 60 万", null],
+    ["财务 / 配送奖金门槛 40 万", null]
+  ].map(lineHTML).join("");
+  document.getElementById("storeGrand").textContent = y(grand);
   document.getElementById("sumBody").innerHTML = rows;
   document.getElementById("sumAll").textContent = y(grand);
-  lastText = txt + "全店工资合计：" + y(grand);
+  allText += "全店合计：" + y(grand);
 }
 
-document.addEventListener("input", e => { if (e.target.matches("input[type=number]")) render(); });
+document.addEventListener("input", e => {
+  if (e.target.matches("input")) render();
+});
 
-function copyText(){
-  navigator.clipboard.writeText(lastText).then(
-    () => alert("明细已复制"),
-    () => alert("复制失败，请手动选中复制")
+/* ===================== 单人工资单：图片 ===================== */
+function drawSlip(emp){
+  const r = RESULT[emp.id], ym = DATA.month;
+  const W = 1080, PAD = 92;
+  const rows = r.lines.filter(l => l[1] !== null);
+  const ROW0 = 566, ROWH = 62;                    // 明细起始基线 / 行高
+  const H = ROW0 + rows.length * ROWH + 404;      // 高度跟着内容走，不留空白
+
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d");
+
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#FDFAF8"); g.addColorStop(.55, "#FBF3F1"); g.addColorStop(1, "#F5E4E2");
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+
+  // 右上角淡金光晕
+  const halo = x.createRadialGradient(W-90, 110, 10, W-90, 110, 420);
+  halo.addColorStop(0, "rgba(201,174,110,.22)"); halo.addColorStop(1, "rgba(201,174,110,0)");
+  x.fillStyle = halo; x.fillRect(0, 0, W, 560);
+
+  const F  = (w,s) => `${w} ${s}px -apple-system, "SF Pro Display", "PingFang SC", sans-serif`;
+  const SERIF = s => `400 ${s}px Didot, "Bodoni 72", "Playfair Display", Georgia, "Times New Roman", serif`;
+  const SONG  = s => `400 ${s}px "Songti SC", "STSong", serif`;
+  const track = (text, px, py, sp, font, style) => {   // 手绘字距，兼容性最好
+    x.font = font; x.fillStyle = style; x.textAlign = "left";
+    let cx = px;
+    for (const ch of text){ x.fillText(ch, cx, py); cx += x.measureText(ch).width + sp; }
+    return cx - sp;
+  };
+
+  // 字标：Didone 衬线 + 金箔渐变 + 发丝线 + 宋体
+  const foil = x.createLinearGradient(PAD, 96, PAD + 300, 156);
+  foil.addColorStop(0, "#E7D2A0"); foil.addColorStop(.34, "#B2914F");
+  foil.addColorStop(.52, "#8C6C2C"); foil.addColorStop(.74, "#D9BE7E");
+  foil.addColorStop(1, "#A9873F");
+  const wmEnd = track("TSMP", PAD, 146, 17, SERIF(56), foil);
+
+  const hair = x.createLinearGradient(PAD, 0, wmEnd + 60, 0);
+  hair.addColorStop(0, "rgba(178,145,79,.85)"); hair.addColorStop(.42, "rgba(230,190,192,.9)");
+  hair.addColorStop(1, "rgba(178,145,79,0)");
+  x.fillStyle = hair; x.fillRect(PAD, 168, wmEnd - PAD + 60, 1);
+
+  track("工资单", PAD, 200, 11, SONG(19), "#A79B92");
+
+  x.textAlign = "right"; x.font = F(400, 26); x.fillStyle = "#6E645C";
+  x.fillText(monthLabel(ym), W - PAD, 146);
+
+  x.fillStyle = "rgba(23,19,15,.10)";
+  x.fillRect(PAD, 268, W - PAD*2, 1);
+
+  x.textAlign = "left";
+  track(emp.role, PAD, 336, 6, F(500, 22), "#B2914F");
+  x.font = F(600, 84); x.fillStyle = "#17130F";
+  x.fillText(emp.name, PAD, 434);
+
+  x.fillStyle = "rgba(23,19,15,.10)";
+  x.fillRect(PAD, 490, W - PAD*2, 1);
+
+  let yy = ROW0;
+  rows.forEach(([t, v, cls]) => {
+    x.font = F(400, 27);
+    x.fillStyle = cls === "miss" ? "#B4746A" : "#6E645C";
+    x.textAlign = "left";
+    let label = t;
+    while (x.measureText(label).width > W - PAD*2 - 260 && label.length > 6)
+      label = label.slice(0, -2) + "…";
+    x.fillText(label, PAD, yy);
+
+    x.font = F(500, 29);
+    x.fillStyle = v < 0 ? "#B4746A" : (cls === "miss" ? "#B4746A" : "#17130F");
+    x.textAlign = "right";
+    x.fillText(sig(v), W - PAD, yy);
+    yy += ROWH;
+  });
+
+  yy += 26;
+  const grd = x.createLinearGradient(PAD, 0, W - PAD, 0);
+  grd.addColorStop(0, "#E6BEC0"); grd.addColorStop(.5, "#D9C08A"); grd.addColorStop(1, "rgba(217,192,138,0)");
+  x.fillStyle = grd; x.fillRect(PAD, yy, W - PAD*2, 2);
+
+  yy += 88;
+  x.textAlign = "left";
+  track("实发合计", PAD, yy, 5, F(400, 24), "#A79B92");
+  x.textAlign = "right"; x.font = F(300, 92); x.fillStyle = "#A9873F";
+  x.fillText(y(r.total), W - PAD, yy + 26);
+
+  x.textAlign = "center"; x.font = F(400, 21); x.fillStyle = "#BDB2A9";
+  x.fillText(`本月 ${DATA.monthDays} 天 · 总店业绩 ${y(DATA.storePerf)}`, W/2, H - 108);
+  x.fillText("TSMP", W/2, H - 64);
+  return c;
+}
+
+function saveImage(id){
+  const emp = STAFF.find(e => e.id === id);
+  const c = drawSlip(emp);
+  const name = `${emp.name}-${fileMonth(DATA.month)}-工资单.png`;
+  c.toBlob(b => {
+    const url = URL.createObjectURL(b);
+    const veil = document.getElementById("veil");
+    document.getElementById("veilImg").src = url;
+    const a = document.getElementById("veilDl");
+    a.href = url; a.download = name;
+    veil.classList.add("on");
+  }, "image/png");
+}
+function closeVeil(){ document.getElementById("veil").classList.remove("on"); }
+document.getElementById("veil").addEventListener("click", e => {
+  if (e.target.id === "veil") closeVeil();
+});
+
+/* ===================== 单人工资单：Word ===================== */
+function saveWord(id){
+  const emp = STAFF.find(e => e.id === id);
+  const r = RESULT[emp.id];
+  const rows = r.lines.filter(l => l[1] !== null)
+    .map(([t,v,cls]) => `<tr>
+        <td style="padding:9px 0;color:${cls==="miss"?"#B4746A":"#5b524b"};border-bottom:1px solid #eee5e2">${t}</td>
+        <td style="padding:9px 0;text-align:right;color:${v<0?"#B4746A":"#17130F"};border-bottom:1px solid #eee5e2">${sig(v)}</td>
+      </tr>`).join("");
+
+  const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8"><title>${emp.name} ${monthLabel(DATA.month)} 工资单</title></head>
+    <body style="font-family:'PingFang SC','Microsoft YaHei',sans-serif;color:#17130F">
+      <div style="width:520px">
+        <p style="margin:0;font-family:Didot,'Bodoni 72',Georgia,'Times New Roman',serif;font-size:27px;letter-spacing:9px;color:#A9873F">TSMP</p>
+        <div style="height:1px;background:#C9A96A;margin:6px 0 5px;width:196px"></div>
+        <p style="margin:0;font-family:'Songti SC',SimSun,serif;font-size:11px;letter-spacing:6px;color:#a79b92">工资单</p>
+        <p style="margin:10px 0 22px;color:#8a8078;font-size:13px">${monthLabel(DATA.month)}　本月 ${DATA.monthDays} 天　总店业绩 ${y(DATA.storePerf)}</p>
+        <p style="margin:0;color:#B2914F;font-size:12px;letter-spacing:3px">${emp.role}</p>
+        <p style="margin:2px 0 18px;font-size:30px;font-weight:bold">${emp.name}</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">${rows}</table>
+        <table style="width:100%;border-collapse:collapse;margin-top:18px">
+          <tr>
+            <td style="color:#8a8078;font-size:13px;letter-spacing:3px">实发合计</td>
+            <td style="text-align:right;font-size:26px;color:#A9873F;font-weight:bold">${y(r.total)}</td>
+          </tr>
+        </table>
+      </div>
+    </body></html>`;
+
+  const blob = new Blob(["﻿", html], { type:"application/msword" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${emp.name}-${fileMonth(DATA.month)}-工资单.doc`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ===================== 其他 ===================== */
+function copyAll(){
+  navigator.clipboard.writeText(allText).then(
+    () => alert("已复制全部明细"),
+    () => alert("复制失败，请手动选中")
   );
 }
 function resetAll(){
   if (!confirm("清空所有已填数据？")) return;
   localStorage.removeItem(KEY);
-  document.querySelectorAll("input[type=number]").forEach(i => i.value = "");
+  document.querySelectorAll('input[type=number]').forEach(i => i.value = "");
   render();
 }
 
