@@ -132,7 +132,7 @@
 const WAN = 10000;                      // 只用来把档位门槛写成「20 万档」这种文案
 
 const RULES = {
-  store: { rate: 0.001 },               // 总店提成：千分之一
+  store: { rate: 0.001, min: 600000 },  // 总店提成：千分之一，总店满 60 万才有
 
   // 个人业绩提成：店长和销售用同一套档位
   tiers: [                              // 从高到低匹配
@@ -240,9 +240,15 @@ function calc(emp, v, storePerf, monthDays){
 
   if (emp.type === "manager"){
     base = RULES.manager.base;
-    const sc = r2(storePerf * RULES.store.rate);
     lines.push(["底薪（" + RULES.manager.baseNote + "）", base]);
-    lines.push(["总店提成（" + y(storePerf) + " × 千分之一）", sc]);
+    // 总店提成：总店业绩没到门槛就没有这一项，个人提成照算
+    let sc = 0;
+    if (storePerf >= RULES.store.min){
+      sc = r2(storePerf * RULES.store.rate);
+      lines.push(["总店提成（" + y(storePerf) + " × 千分之一）", sc]);
+    } else {
+      lines.push(["总店提成 — 总店未达 " + (RULES.store.min/WAN) + " 万，无提成（差 " + y(RULES.store.min - storePerf) + "）", 0, "miss"]);
+    }
     extra = sc + personalCommission(acd, b, lines);
   }
 
@@ -286,7 +292,7 @@ const FIELDS = {
   delivery: [["trips","送货趟数",0],["leave","请假天数",0],["adj","其他增减（元，可负）",1]]
 };
 const RULETEXT = {
-  manager:  "底薪 8,000 ｜ 总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 请假第 1 天起按 8,000 ÷ 当月天数扣",
+  manager:  "底薪 8,000 ｜ 总店满 60 万才有总店提成：总店业绩 × 千分之一 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 请假第 1 天起按 8,000 ÷ 当月天数扣",
   sales:    "底薪 4,500 ｜ 个人业绩满 15 万起提：15 万档 A/C/D 1%、B 0.5%；20 万档 A/C/D 2%、B 1% ｜ 每月 2 天正常休息，超出先扣全勤 500，再按 4,000 ÷ 当月天数扣天",
   finance:  "底薪 6,800 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100；不满 40 万无奖金 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 6,700 ÷ 当月天数扣天",
   delivery: "底薪 5,800 ｜ 每趟 15 元 ｜ 总店满 60 万：每 10 万奖 200；满 40 万：每 10 万奖 100 ｜ 每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣天"
