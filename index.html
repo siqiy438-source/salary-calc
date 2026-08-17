@@ -556,19 +556,20 @@ document.addEventListener("input", e => {
 function buildSections(emp){
   const v = DATA[emp.id], r = RESULT[emp.id], R = RULES[emp.type];
   const sec = [];
-  const pick = g => r.lines.filter(l => l[3] === g && l[1] !== null);
+  // 发给本人的单子上不写「未达 X 万档 / 差多少」这类解释，也不列 ¥0 的空行，
+  // 只留真金白银的项。去掉的都是 0，不影响小计。（完整说明留在网页那一列）
+  const pick = g => r.lines.filter(l => l[3] === g && l[1] !== null && l[1] !== 0);
 
   // 一、本月数据
   const d1 = [["总店业绩", y(DATA.storePerf), ""]];
   if (emp.type === "manager" || emp.type === "sales"){
-    const acd = v.acd||0, b = v.b||0, tot = acd + b;
-    const tier = RULES.tiers.find(t => tot >= t.min);
+    const acd = v.acd||0, b = v.b||0;
     d1.push(["个人 A/C/D 类业绩", y(acd), ""]);
     d1.push(["个人 B 类业绩", y(b), ""]);
-    d1.push(["个人业绩合计", y(tot) + (tier ? `（满 ${tier.min/WAN} 万档）` : "（未达 15 万档）"), tier ? "" : "miss"]);
+    d1.push(["个人业绩合计", y(acd + b), ""]);
   }
   if (emp.type === "delivery") d1.push(["送货趟数", (v.trips||0) + " 趟", ""]);
-  d1.push(["请假天数", (v.leave||0) + " 天", (v.leave||0) > R.freeDays ? "miss" : ""]);
+  d1.push(["请假天数", (v.leave||0) + " 天", ""]);
   d1.push(["本月天数", DATA.monthDays + " 天", ""]);
   sec.push({ title:"本月数据", rows:d1 });
 
@@ -584,7 +585,7 @@ function buildSections(emp){
   const bon = pick("bonus");
   sec.push({
     title:"提成与奖金",
-    rows: bon.length ? bon.map(l => [l[0], sig(l[1]), l[2]]) : [["本月无提成", "—", "miss"]],
+    rows: bon.length ? bon.map(l => [l[0], sig(l[1]), ""]) : [["本月无提成", "—", ""]],
     sub: bon.reduce((s,l) => s + l[1], 0)
   });
 
@@ -592,7 +593,7 @@ function buildSections(emp){
   const ded = pick("deduct");
   sec.push({
     title:"扣款",
-    rows: ded.length ? ded.map(l => [l[0], sig(l[1]), l[2]]) : [["本月无扣款", "—", ""]],
+    rows: ded.length ? ded.map(l => [l[0], sig(l[1]), ""]) : [["本月无扣款", "—", ""]],
     sub: ded.length ? ded.reduce((s,l) => s + l[1], 0) : null
   });
 
