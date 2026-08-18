@@ -630,6 +630,14 @@ function buildSections(emp){
   // 只留真金白银的项。去掉的都是 0，不影响小计。（完整说明留在网页那一列）
   const pick = g => r.lines.filter(l => l[3] === g && l[1] !== null && l[1] !== 0);
 
+  // 发出去的单子只报结果，不报算法。网页那一列保留完整算式，自己核账用。
+  //   底薪（基本 2,500 + 社保 1,200 …）  → 底薪
+  //   总店提成（¥620,000 × 千分之一）    → 总店提成
+  //   请假扣款（4,000 ÷ 31 天 × 1 天）   → 请假扣款
+  //   请假超过 2 天 — 扣全勤奖           → 全勤奖扣除
+  const plain = t => t.includes("扣全勤奖") ? "全勤奖扣除"
+                   : t.replace(/（[^（）]*）/g, "").replace(/\s*—.*$/, "").trim();
+
   // 一、本月数据
   const d1 = [["总店业绩", y(DATA.storePerf), ""]];
   if (emp.type === "manager" || emp.type === "sales"){
@@ -640,7 +648,6 @@ function buildSections(emp){
   }
   if (emp.type === "delivery") d1.push(["送货趟数", (v.trips||0) + " 趟", ""]);
   d1.push(["请假天数", (v.leave||0) + " 天", ""]);
-  d1.push(["本月天数", DATA.monthDays + " 天", ""]);
   sec.push({ title:"本月数据", rows:d1 });
 
   // 二、固定工资
@@ -655,7 +662,7 @@ function buildSections(emp){
   const bon = pick("bonus");
   sec.push({
     title:"提成与奖金",
-    rows: bon.length ? bon.map(l => [l[0], sig(l[1]), ""]) : [["本月无提成", "—", ""]],
+    rows: bon.length ? bon.map(l => [plain(l[0]), sig(l[1]), ""]) : [["本月无提成", "—", ""]],
     sub: bon.reduce((s,l) => s + l[1], 0)
   });
 
@@ -663,7 +670,7 @@ function buildSections(emp){
   const ded = pick("deduct");
   sec.push({
     title:"扣款",
-    rows: ded.length ? ded.map(l => [l[0], sig(l[1]), ""]) : [["本月无扣款", "—", ""]],
+    rows: ded.length ? ded.map(l => [plain(l[0]), sig(l[1]), ""]) : [["本月无扣款", "—", ""]],
     sub: ded.length ? ded.reduce((s,l) => s + l[1], 0) : null
   });
 
@@ -794,8 +801,6 @@ function drawSlip(emp){
   x.fillText(y(r.total), W - PAD, yy + 26);
 
   x.fillStyle = LINE; x.fillRect(PAD, H - 148, W - PAD*2, 1);
-  x.textAlign = "left"; x.font = F(400, 21); x.fillStyle = INK3;
-  x.fillText(`本月 ${DATA.monthDays} 天　总店业绩 ${y(DATA.storePerf)}`, PAD, H - 100);
   x.textAlign = "right";
   track("TSMP", W - PAD - 78, H - 100, 6, SERIF(22), GOLD_LITE);
   return c;
@@ -842,7 +847,7 @@ function saveWord(id){
         <p style="margin:0;font-family:Didot,'Bodoni 72',Georgia,'Times New Roman',serif;font-size:27px;letter-spacing:9px;color:#A9873F">TSMP</p>
         <div style="height:1px;background:#C9A96A;margin:6px 0 5px;width:196px"></div>
         <p style="margin:0;font-family:'Songti SC',SimSun,serif;font-size:11px;letter-spacing:6px;color:#a79b92">工资单</p>
-        <p style="margin:10px 0 22px;color:#8a8078;font-size:13px">${monthLabel(DATA.month)}　本月 ${DATA.monthDays} 天　总店业绩 ${y(DATA.storePerf)}</p>
+        <p style="margin:10px 0 22px;color:#8a8078;font-size:13px">${monthLabel(DATA.month)}</p>
         <p style="margin:0;color:#B2914F;font-size:12px;letter-spacing:3px">${emp.role}</p>
         <p style="margin:2px 0 18px;font-size:30px;font-weight:bold">${emp.name}</p>
         <table style="width:100%;border-collapse:collapse;font-size:13px">${rows}</table>
