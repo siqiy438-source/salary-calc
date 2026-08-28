@@ -142,6 +142,20 @@
   .two{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
   .foot{font-size:12px;color:var(--ink3);text-align:center;margin-top:26px;line-height:1.9}
   .foot a{color:var(--gold);text-decoration:none}
+  /* ---------- 出图浮层 ---------- */
+  .veil{position:fixed;inset:0;z-index:60;display:none;background:rgba(18,15,12,.9);
+        flex-direction:column;align-items:center;justify-content:center;gap:14px;
+        padding:14px;padding-bottom:calc(14px + var(--safe-b))}
+  .veil.on{display:flex}
+  .veil img{max-width:100%;max-height:76vh;border-radius:8px;
+            box-shadow:0 10px 40px rgba(0,0,0,.4);object-fit:contain}
+  .veil .tip{color:#CFC6BB;font-size:13px;text-align:center;line-height:1.8}
+  .vacts{display:flex;gap:10px;width:100%;max-width:420px}
+  .vacts>*{flex:1;text-align:center;padding:14px 10px;border-radius:8px;font-size:15px;
+           text-decoration:none;font-weight:500}
+  .vacts .dl{background:var(--gold);color:#FCFAF7}
+  .vacts button{border:1px solid #6A6157;color:#CFC6BB;background:none}
+
   textarea{width:100%;min-height:110px;border:1px solid var(--line);border-radius:9px;padding:11px;
     font:400 12px/1.5 ui-monospace,Menlo,monospace;background:var(--card);color:var(--ink2);
     resize:vertical}
@@ -149,6 +163,15 @@
 </head>
 <body>
 <div id="app"></div>
+
+<div class="veil" id="veil">
+  <img id="veilImg" alt="租金通知单">
+  <div class="tip">长按图片保存到相册<br>然后在微信里发给租客</div>
+  <div class="vacts">
+    <a class="dl" id="veilDl" download>保存图片</a>
+    <button onclick="closeVeil()">关闭</button>
+  </div>
+</div>
 
 <script>
 /* ==================================================================
@@ -176,8 +199,8 @@ const LEAD     = { "0":"", "1m":"提前一个月", "7d":"提前一周" };
 const SEED = { v:1, units:[
   { id:"u1", name:"金融中心",   cycle:"q", dueMonth:11, dueDay:1,  lead:"1m", rent:21000, fee:546  },
   { id:"u2", name:"未来方舟",   cycle:"q", dueMonth:9,  dueDay:2,  lead:"1m", rent:25000, fee:840  },
-  { id:"u3", name:"中天写字楼", cycle:"h", dueMonth:11, dueDay:1,  lead:"1m", rent:24000, fee:0    },
-  { id:"u4", name:"碧桂园",     cycle:"q", dueMonth:9,  dueDay:6,  lead:"7d", rent:24789, fee:0    },
+  { id:"u3", name:"中天写字楼", cycle:"h", dueMonth:11, dueDay:1,  lead:"1m", rent:24000, fee:0, feeSelf:1 },
+  { id:"u4", name:"碧桂园",     cycle:"q", dueMonth:9,  dueDay:6,  lead:"7d", rent:24789, fee:0, feeSelf:1 },
   { id:"u5", name:"会展城",     cycle:"h", dueMonth:12, dueDay:1,  lead:"1m", rent:96000, fee:1534 },
   { id:"u6", name:"紫林",       cycle:"m", dueMonth:1,  dueDay:12, lead:"0",  rent:1224,  fee:0    }
 ].map(u=>Object.assign({ wx:"", landlord:"", addr:"", wxid:"" }, u)),
@@ -427,13 +450,15 @@ function vDetail(u){
     <div class="cap">${label}</div>
     <div class="money serif">${yuan(st.amt)}</div>
     <div class="brk">
-      租金 ${yuan(u.rent)}${ +u.fee ? " ＋ 代收物业 "+yuan(u.fee) : "（物业租客自付）" }<br>
+      租金 ${yuan(u.rent)}${ +u.fee ? " ＋ 代收物业 "+yuan(u.fee)
+                                          : (u.feeSelf ? "（物业费租客自付）" : "") }<br>
       该收日 ${md(st.target.pay)}
       ${ +u.fee ? "<br><span style=\"color:var(--gold)\">其中物业 "+yuan(u.fee)+" 收到后要转交物业公司</span>" : "" }
     </div>
     <button class="btn${st.done?" off":""}"
       onclick="togglePaid('${u.id}','${st.key}');render()">${
         st.done ? "撤销「"+md(st.curPay)+"已收」" : "收 到 了"}</button>
+    <button class="btn off" onclick="saveNotice('${u.id}')">出一张通知单发给他</button>
   </div>
 
   ${ info.length ? `
@@ -596,6 +621,152 @@ function wipe(){
   if(!confirm("清空全部门面和收租记录？删了找不回来。")) return;
   localStorage.removeItem(KEY); DB=blank(); go({n:"home"});
 }
+
+
+/* ==================================================================
+   出图：给租客的租金通知单 / 收据
+   1080×动态高，canvas 手绘。手机上长按图片就能存进相册。
+   ================================================================== */
+function rmbUpper(num){
+  const D="零壹贰叁肆伍陆柒捌玖".split(""), U=["","拾","佰","仟"];
+  const sec=n=>{let s="",z=false,k=0;
+    while(n>0){const d=n%10;
+      if(d===0){if(s)z=true;}else{s=D[d]+U[k]+(z?"零":"")+s;z=false;}
+      n=(n-d)/10;k++;} return s;};
+  let t=Math.round(Math.abs(num)*100);
+  const fen=t%10; t=(t-fen)/10; const jiao=t%10; t=(t-jiao)/10;
+  const yuan=t, yi=Math.floor(yuan/1e8), wan=Math.floor(yuan/1e4)%1e4, low=yuan%1e4;
+  let s="";
+  if(yi)s+=sec(yi)+"亿";
+  if(wan)s+=sec(wan)+"万"; else if(yi&&low)s+="零";
+  if(low){ if((yi||wan)&&low<1000)s+="零"; s+=sec(low); }
+  if(!s)s="零";
+  s+="元";
+  if(!jiao&&!fen)s+="整"; else{ s+=jiao?D[jiao]+"角":"零"; if(fen)s+=D[fen]+"分"; }
+  return s;
+}
+const yuan2 = v => "¥"+(+v||0).toLocaleString("zh-CN",{minimumFractionDigits:2,maximumFractionDigits:2});
+const ymd   = d => d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+
+/* 一期租赁期间：到期日当天起，往后一个周期减一天 */
+function leaseSpan(u, due){
+  const end = mk(due.getFullYear(), due.getMonth()+1+STEP[u.cycle], u.dueDay);
+  end.setDate(end.getDate()-1);
+  return [due, end];
+}
+
+let _paper=null;
+function drawNotice(u){
+  const t=today(), st=stateOf(u), tg=st.target;   // 该收了→本期；已收→下一期
+  if(!tg) return null;
+  const [s0,s1] = leaseSpan(u, tg.due);
+
+  /* 费用行：代收 / 自付 / 没有物业费，三种写法不一样 */
+  const items=[["租金", +u.rent||0, ""]];
+  if(+u.fee)        items.push(["代收物业费", +u.fee, "由我方代收后转交物业公司"]);
+  else if(u.feeSelf) items.push(["物业费", 0, "由承租方自行向物业缴纳，不含在本单内"]);
+  const total = items.reduce((n,i)=>n+i[1], 0);
+
+  const W=1080, M=36, PAD=88, TW=W-PAD*2, TX=PAD;
+  const rowH = items.map(i=>i[2]?114:70);
+  const boxH = rowH.reduce((a,b)=>a+b,0)+96;
+  const H = 660 + boxH + 300;
+
+  const c=document.createElement("canvas"); c.width=W; c.height=H;
+  const x=c.getContext("2d");
+  const INK="#141210", INK2="#5F564D", INK3="#9C938A";
+  const AC="#A9873F", LITE="#C9B183", BD="#D8CDBB", TINT="#F2EEE7";
+  const F=(w,sz)=>`${w} ${sz}px -apple-system,"SF Pro Display","PingFang SC","Hiragino Sans GB",sans-serif`;
+  const SONG=(w,sz)=>`${w} ${sz}px "Songti SC","STSong",serif`;
+  const SERIF=sz=>`400 ${sz}px Didot,"Bodoni 72",Georgia,serif`;
+
+  x.fillStyle="#FAF8F5"; x.fillRect(0,0,W,H);
+  if(!_paper){                                   // 纸张噪点，贴一次反复用
+    const N=128,tc=document.createElement("canvas"); tc.width=tc.height=N;
+    const g=tc.getContext("2d"), im=g.createImageData(N,N);
+    for(let i=0;i<im.data.length;i+=4){const v=(Math.random()*255)|0;
+      im.data[i]=im.data[i+1]=im.data[i+2]=v; im.data[i+3]=12;}
+    g.putImageData(im,0,0); _paper=tc;
+  }
+  x.fillStyle=x.createPattern(_paper,"repeat"); x.fillRect(0,0,W,H);
+
+  const track=(txt,px,py,sp,font,st,al)=>{
+    x.font=font; x.fillStyle=st;
+    let tot=0; for(const ch of txt) tot+=x.measureText(ch).width+sp; tot-=sp;
+    let cx = al==="center"?px-tot/2 : al==="right"?px-tot : px;
+    x.textAlign="left";
+    for(const ch of txt){ x.fillText(ch,cx,py); cx+=x.measureText(ch).width+sp; }
+  };
+
+  x.strokeStyle=LITE; x.lineWidth=2.5; x.strokeRect(M+.5,M+.5,W-M*2-1,H-M*2-1);
+  x.strokeStyle=BD;   x.lineWidth=1;   x.strokeRect(M+9.5,M+9.5,W-M*2-19,H-M*2-19);
+
+  track("租金通知单", W/2,168,13,SONG(600,50),INK,"center");
+  x.fillStyle=AC; x.fillRect(W/2-125,192,250,1.5);
+  track("RENT  NOTICE", W/2,226,6,SERIF(17),LITE,"center");
+  x.fillStyle=BD; x.fillRect(TX,266,TW,1);
+
+  x.textAlign="left";
+  x.font=F(600,54); x.fillStyle=INK; x.fillText(u.name,TX,340);
+  if(u.wx){ x.font=F(400,28); x.fillStyle=INK3; x.fillText(u.wx,TX,388); }
+  x.fillStyle=BD; x.fillRect(TX,420,TW,1);
+
+  let yy=478;
+  [["租赁期间", ymd(s0)+" 至 "+ymd(s1)],
+   ["付款周期", CYCLE[u.cycle]==="月付"?"每月一次":CYCLE[u.cycle]==="季付"?"每季度一次":"每半年一次"],
+   ["应交日期", ymd(tg.pay)]
+  ].forEach(([k,v],i,arr)=>{
+    const last=i===arr.length-1;
+    x.font=F(400,25); x.fillStyle=INK3; x.textAlign="left"; x.fillText(k,TX,yy);
+    x.font=F(last?600:500,27); x.fillStyle=last?AC:INK2; x.textAlign="right"; x.fillText(v,W-PAD,yy);
+    yy+=52;
+  });
+
+  yy=660;
+  x.strokeStyle=BD; x.lineWidth=1; x.strokeRect(TX+.5,yy+.5,TW-1,boxH-1);
+  let ry=yy;
+  items.forEach(([name,amt,note],i)=>{
+    if(i){ x.fillStyle="#EFE9E1"; x.fillRect(TX+28,ry,TW-56,1); }
+    x.font=F(500,29); x.fillStyle=INK; x.textAlign="left"; x.fillText(name,TX+28,ry+46);
+    x.font=F(600,31); x.fillStyle=amt?INK:INK3; x.textAlign="right";
+    x.fillText(amt?yuan2(amt):"自付",W-PAD-28,ry+46);
+    if(note){ x.font=F(400,22); x.fillStyle=INK3; x.textAlign="left"; x.fillText(note,TX+28,ry+84); }
+    ry+=rowH[i];
+  });
+  x.fillStyle=TINT; x.fillRect(TX+1,ry,TW-2,95);
+  x.fillStyle=AC;   x.fillRect(TX,ry,TW,1.5);
+  x.font=F(600,30); x.fillStyle=INK; x.textAlign="left";
+  x.fillText("本期应交合计",TX+28,ry+60);
+  x.font=F(600,44); x.fillStyle=AC; x.textAlign="right";
+  x.fillText(yuan2(total),W-PAD-28,ry+62);
+
+  yy=660+boxH+30;
+  x.strokeStyle=BD; x.lineWidth=1; x.strokeRect(TX+.5,yy+.5,TW-1,84);
+  x.font=F(400,22); x.fillStyle=INK3; x.textAlign="left";
+  x.fillText("人民币（大写）",TX+28,yy+50);
+  track(rmbUpper(total),W-PAD-28,yy+55,2,SONG(600,32),INK,"right");
+
+  x.fillStyle=BD; x.fillRect(TX,H-M-84,TW,1);
+  track(t.getFullYear()+" 年 "+(t.getMonth()+1)+" 月 "+t.getDate()+" 日 开具",
+        W/2,H-M-42,2,F(400,21),INK3,"center");
+  return c;
+}
+
+function saveNotice(id){
+  const u=DB.units.find(x=>x.id===id);
+  const c=drawNotice(u);
+  if(!c){ alert("这个门面还没有可出的账期"); return; }
+  const tg=stateOf(u).target;
+  c.toBlob(b=>{
+    const url=URL.createObjectURL(b);
+    document.getElementById("veilImg").src=url;
+    const a=document.getElementById("veilDl");
+    a.href=url;
+    a.download=u.name+"-"+pkey(tg.pay)+"-租金通知.png";
+    document.getElementById("veil").classList.add("on");
+  },"image/png");
+}
+function closeVeil(){ document.getElementById("veil").classList.remove("on"); }
 
 /* ---------- 复制 ---------- */
 function copy(btn,text){
