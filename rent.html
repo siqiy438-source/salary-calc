@@ -275,16 +275,20 @@ function payOf(u, due){
   if(u.lead==="7d"){ const d=new Date(due); d.setDate(d.getDate()-7); return d; }
   return due;
 }
-/* 最近一个已到的该收日 + 下一个 */
-function periods(u, ref){
+/* 前后各两年的全部收租期，按该收日排好 */
+function periodList(u, ref){
   const step=STEP[u.cycle], list=[];
-  for(let y=ref.getFullYear()-1; y<=ref.getFullYear()+1; y++)
+  for(let y=ref.getFullYear()-2; y<=ref.getFullYear()+2; y++)
     for(let m=1; m<=12; m++)
       if(((((m-u.dueMonth)%step)+step)%step)===0){
         const due=mk(y,m,u.dueDay);
         list.push({ due, pay:payOf(u,due) });
       }
-  list.sort((a,b)=>a.pay-b.pay);
+  return list.sort((a,b)=>a.pay-b.pay);
+}
+/* 最近一个已到的该收日 + 下一个 */
+function periods(u, ref){
+  const list=periodList(u,ref);
   let cur=null,next=null;
   for(const p of list){ if(p.pay<=ref) cur=p; else { next=p; break; } }
   return {cur,next};
@@ -302,32 +306,56 @@ function togglePaid(id,k,dateStr){
   if(isPaid(id,k)) unmarkPaid(id,k); else markPaid(id,k,dateStr||ymdLocal(today()));
 }
 
-/* 一个门面此刻的状态 */
+/* 一个门面此刻的状态
+   要点：认「最早一个还没收的期」，不是「最近一个已经过去的期」。
+   以前只看后者，所以在详情页把下一期标成已收之后，首页照旧把它
+   排进「还没到」——碧桂园就是这么错的。 */
 function stateOf(u){
-  const t=today(), {cur,next}=periods(u,t);
-  const amt=amountOf(u);
-  const curKey=cur?pkey(cur.pay):null;
-  const done=curKey && isPaid(u.id,curKey);
+  const t=today(), amt=amountOf(u);
+  const list=periodList(u,t);
+  const keys=paidKeys(u.id).sort();
+
+  /* 往回只看到「最早一次记录」为止。再往前没有数据，不能算成漏收，
+     否则每个门面都会背上一堆 2025 年的假逾期。 */
+  let floor;
+  if(keys.length){
+    const first=payDateOfKey(u,keys[0]);
+    floor = first || list[0].pay;
+  }else{
+    const past=list.filter(p=>p.pay<=t);
+    floor = past.length ? past[past.length-1].pay : list[0].pay;
+  }
+
+  const consider = list.filter(p=>p.pay>=floor);
+  const unpaid   = consider.filter(p=>!isPaid(u.id,pkey(p.pay)));
+  const overdue  = unpaid.filter(p=>p.pay<=t);
+  const target   = overdue[0] || unpaid[0] || list[list.length-1];
+
+  /* 最后收的那一期，以及租客实际给钱的日子 */
+  const lastKey  = keys.length ? keys[keys.length-1] : null;
+  const lastPay  = lastKey ? payDateOfKey(u,lastKey) : null;
+  const lastOn   = lastKey ? (paidOn(u.id,lastKey) || "") : "";
+  const lastReal = lastOn ? new Date(lastOn+"T00:00:00") : lastPay;
+
   const badgeM = u.cycle==="m" ? "每月" : null;
+  const bm = badgeM || ((target.pay.getMonth()+1)+" 月");
+  const bd = target.pay.getDate();
+  const base = { amt, key:pkey(target.pay), lastKey, target, curPay:lastPay, bm, bd };
 
-  if(cur && !done){
-    const od=diff(cur.pay,t);
-    return { g:0, key:curKey, amt, done:false, c: od===0?"gold":"red",
-             bm: badgeM||((cur.pay.getMonth()+1)+" 月"), bd: cur.pay.getDate(),
-             sub: od===0?"今天该收":"逾期 "+od+" 天",
-             target:cur, curPay:cur.pay };
+  if(target.pay<=t){                                   // 该收了：逾期或就是今天
+    const od=diff(target.pay,t);
+    return Object.assign(base,{ g:0, done:false, c: od===0?"gold":"red",
+      sub: od===0?"今天该收":"逾期 "+od+" 天" });
   }
-  const nd=diff(t,next.pay);
-  const since=cur?diff(cur.pay,t):9999;
-  if(since<=31){   // 刚收不久，归到「本期已收」
-    return { g:2, key:curKey, amt, done:true, c:"green", curPay:cur.pay,
-             bm: badgeM||((next.pay.getMonth()+1)+" 月"), bd: next.pay.getDate(),
-             sub: md(cur.pay)+"已收", target:next };
-  }
+  const nd=diff(t,target.pay);
+  /* 刚收到不久就归「本期已收」。租客提前给的话 lastReal 会在今天之后，
+     所以取绝对值。 */
+  const gap = lastReal ? Math.abs(diff(lastReal,t)) : 9999;
+  if(gap<=31)
+    return Object.assign(base,{ g:2, done:true, c:"green",
+      sub: md(lastReal)+"已收" });
 
-  return { g:1, key:curKey, amt, done:true, c:"gray", curPay:cur?cur.pay:null,
-           bm: badgeM||((next.pay.getMonth()+1)+" 月"), bd: next.pay.getDate(),
-           sub:"还有 "+nd+" 天", target:next };
+  return Object.assign(base,{ g:1, done:true, c:"gray", sub:"还有 "+nd+" 天" });
 }
 
 /* ---------- 汇总 ---------- */
@@ -445,7 +473,7 @@ function group(title,list){
       </div>
       <div class="amt${st.done?" dim":(st.c==="red"?" red":"")}">${yuan(st.amt)}</div>
       ${st.g===1?"":`<div class="tick${st.done?" on":""}"
-           onclick="event.stopPropagation();togglePaid('${u.id}','${st.key}');render()">${CHECK}</div>`}
+           onclick="event.stopPropagation();togglePaid('${u.id}','${st.done?st.lastKey:st.key}');render()">${CHECK}</div>`}
     </div>`).join("");
 }
 
