@@ -129,6 +129,8 @@
   .hist .hd{width:34px;height:34px;border-radius:50%;margin:6px auto 0;border:2.5px solid #DBD3C8;
             display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:13px}
   .hist .hd.on{background:var(--green);border-color:var(--green)}
+  .hist .hd.miss{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+  .hist .hn{font-size:11px;color:var(--ink3);margin-top:5px;height:14px}
 
   /* ---------- 表单 ---------- */
   .f{padding:12px 0;border-bottom:1px solid var(--line)}
@@ -216,25 +218,52 @@ paid:{
 /* ---------- 数据 ---------- */
 let FROM_SEED = false;                       // 这份是出厂数据，还没被人动过
 function load(){
-  try{ const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.units) return d; }catch(e){}
+  try{ const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.units) return migrate(d); }catch(e){}
   FROM_SEED = true;
-  return JSON.parse(JSON.stringify(SEED));
+  return migrate(JSON.parse(JSON.stringify(SEED)));
 }
 function save(){ FROM_SEED=false; localStorage.setItem(KEY, JSON.stringify(DB)); }
+
+/* 老格式的收租记录是一串期号 ["2026-07"]，只知道「这期收了」，
+   不知道租客到底哪天给的。新格式是 { "2026-07": "2026-07-03" }。
+   迁移时按「准时交」补上该收日当天，之后可以在详情页改成实际那天。 */
+function migrate(d){
+  d.paid = d.paid || {};
+  (d.units||[]).forEach(u=>{
+    const p = d.paid[u.id];
+    if(!Array.isArray(p)) return;
+    const o = {};
+    p.forEach(k=>{ const dt=payDateOfKey(u,k); o[k] = dt ? ymdLocal(dt) : ""; });
+    d.paid[u.id] = o;
+  });
+  return d;
+}
+/* 期号 → 那一期的该收日 */
+function payDateOfKey(u,k){
+  const step=STEP[u.cycle], y=+k.slice(0,4);
+  for(let mm=1; mm<=12; mm++){
+    if(((((mm-u.dueMonth)%step)+step)%step)!==0) continue;
+    for(const yy of [y-1,y,y+1]){
+      const pay=payOf(u, mk(yy,mm,u.dueDay));
+      if(pkey(pay)===k) return pay;
+    }
+  }
+  return null;
+}
 let DB = load();
 
 /* ---------- 日期 ----------
    存的是「到期日」（几月几号）+「提前多久」。
    该收钱的日子 = 到期日往前推。全程没有任何日期被改写，
    都是拿今天现算出来的。                                        */
-const pad2 = n => String(n).padStart(2,"0");
-const dim  = (y,m) => new Date(y,m,0).getDate();          // m 是 1-12
+function pad2(n){ return String(n).padStart(2,"0"); }
+function dim(y,m){ return new Date(y,m,0).getDate(); }     // m 是 1-12
 function mk(y,m,d){                                        // 跨年 + 月末夹取
   while(m>12){ m-=12; y++; }
   while(m<1) { m+=12; y--; }
   return new Date(y, m-1, Math.min(d, dim(y,m)));
 }
-const pkey    = dt => dt.getFullYear()+"-"+pad2(dt.getMonth()+1);
+function pkey(dt){ return dt.getFullYear()+"-"+pad2(dt.getMonth()+1); }
 const md      = dt => (dt.getMonth()+1)+" 月 "+dt.getDate()+" 日";
 const mdTight = dt => (dt.getMonth()+1)+"月"+dt.getDate()+"日";
 const diff    = (a,b) => Math.round((b-a)/86400000);
@@ -262,12 +291,15 @@ function periods(u, ref){
 }
 
 const amountOf = u => (+u.rent||0)+(+u.fee||0);
-const paidList = id => DB.paid[id] || [];
-const isPaid   = (id,k) => paidList(id).indexOf(k)>=0;
-function togglePaid(id,k){
-  const a=paidList(id).slice(), i=a.indexOf(k);
-  if(i>=0) a.splice(i,1); else a.push(k);
-  DB.paid[id]=a.sort(); save();
+const paidMap  = id => DB.paid[id] || (DB.paid[id]={});
+const paidKeys = id => Object.keys(paidMap(id));
+const isPaid   = (id,k) => paidMap(id)[k] !== undefined;
+const paidOn   = (id,k) => paidMap(id)[k] || "";       // 实收日期，"" = 没记
+function ymdLocal(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function markPaid(id,k,dateStr){ paidMap(id)[k] = dateStr || ""; save(); }
+function unmarkPaid(id,k){ delete paidMap(id)[k]; save(); }
+function togglePaid(id,k,dateStr){
+  if(isPaid(id,k)) unmarkPaid(id,k); else markPaid(id,k,dateStr||ymdLocal(today()));
 }
 
 /* 一个门面此刻的状态 */
@@ -306,7 +338,7 @@ function yearStats(){
   DB.units.forEach(u=>{
     const a=amountOf(u);
     total += a*PER_YEAR[u.cycle];
-    paidList(u.id).forEach(k=>{ if(k.slice(0,4)==String(y)) got+=a; });
+    paidKeys(u.id).forEach(k=>{ if(k.slice(0,4)==String(y)) got+=a; });
   });
   return {got,total,pct: total?Math.round(got/total*100):0};
 }
@@ -418,46 +450,68 @@ function group(title,list){
 }
 
 /* ---------- 详情 ---------- */
+/* 今年这个门面的所有收租日（半年付就 2 个，月付 12 个）+ 下一期 */
+function yearPeriods(u, year){
+  const step=STEP[u.cycle], out=[];
+  for(let m=1;m<=12;m++){
+    if(((((m-u.dueMonth)%step)+step)%step)!==0) continue;
+    const due=mk(year,m,u.dueDay), pay=payOf(u,due);
+    if(pay.getFullYear()===year) out.push({due,pay});
+  }
+  return out.sort((a,b)=>a.pay-b.pay);
+}
+
 function vDetail(u){
   if(!u) return (go({n:"home"}),"");
-  const st=stateOf(u), t=today();
-  const nd=diff(t,st.target.pay);
-  const label = st.g===0 ? "本期应收" : "下期应收";
+  const t=today(), st=stateOf(u);
 
-  const info=[["房东姓名",u.landlord],["门面地址",u.addr],["房东微信号",u.wxid]]
-    .filter(r=>r[1]);
+  /* 面板和按钮认准同一期：该收了就是本期，已收就看下一期。
+     以前面板写下一期、按钮却撤上一期，两个日期混在一个框里。 */
+  const tg   = st.target;
+  const key  = pkey(tg.pay);
+  const done = isPaid(u.id, key);
+  const nd   = diff(t, tg.pay);
+  const over = nd < 0;
+  const cap  = st.g===0 ? "本期应收" : "下期应收";
+  const chip = done ? "已收" : over ? "逾期 "+(-nd)+" 天" : nd===0 ? "今天该收" : "还有 "+nd+" 天";
+  const chipC= done ? "green" : over ? "red" : nd<=7 ? "gold" : "gray";
 
-  /* 最近 6 期 */
-  const step=STEP[u.cycle], hist=[];
-  let d=st.g===0?st.target.due:periods(u,new Date(st.target.pay-86400000)).cur.due;
-  for(let i=0;i<6;i++){
-    const due=mk(d.getFullYear(), d.getMonth()+1-step*i, u.dueDay);
-    const pay=payOf(u,due);
-    const yy=pay.getFullYear();
-    hist.push({ k:pkey(pay),
-                t:(yy===t.getFullYear()?"":String(yy).slice(2)+"年 ")+(pay.getMonth()+1)+" 月" });
-  }
+  /* 收租日程：季付一年四个日子，写死一个会让人以为日期变了 */
+  const sched = u.cycle==="m"
+    ? "每月 "+u.dueDay+" 号收"
+    : "收租日 "+yearPeriods(u,t.getFullYear())
+        .map(p=>(p.pay.getMonth()+1)+"/"+p.pay.getDate()).join(" · ");
+
+  const info=[["房东姓名",u.landlord],["门面地址",u.addr],["房东微信号",u.wxid]].filter(r=>r[1]);
+  const list=yearPeriods(u,t.getFullYear());
 
   return `
   <span class="back" onclick="go({n:'home'})">‹  返回</span>
   <h1>${esc(u.name)}</h1>
-  <div class="lede">${u.wx?esc(u.wx)+" · ":""}${CYCLE[u.cycle]} · ${
-     u.cycle==="m" ? "每月 "+u.dueDay+" 号" : mdTight(st.target.due)+"到期"
-  }${u.lead!=="0"?"，"+LEAD[u.lead]:""}</div>
+  <div class="lede">${u.wx?esc(u.wx)+" · ":""}${CYCLE[u.cycle]}${
+     u.lead!=="0" ? " · "+LEAD[u.lead]+"交" : ""}<br>${sched}</div>
 
   <div class="panel">
-    <span class="chip c-${st.c}">${st.g===0?st.sub:"还有 "+nd+" 天"}</span>
-    <div class="cap">${label}</div>
+    <span class="chip c-${chipC}">${chip}</span>
+    <div class="cap">${cap}</div>
     <div class="money serif">${yuan(st.amt)}</div>
     <div class="brk">
       租金 ${yuan(u.rent)}${ +u.fee ? " ＋ 代收物业 "+yuan(u.fee)
-                                          : (u.feeSelf ? "（物业费租客自付）" : "") }<br>
-      该收日 ${md(st.target.pay)}
+                                    : (u.feeSelf ? "（物业费租客自付）" : "") }<br>
+      该收日 ${md(tg.pay)}${ u.lead!=="0" ? "　·　"+mdTight(tg.due)+"到期" : "" }
       ${ +u.fee ? "<br><span style=\"color:var(--gold)\">其中物业 "+yuan(u.fee)+" 收到后要转交物业公司</span>" : "" }
     </div>
-    <button class="btn${st.done?" off":""}"
-      onclick="togglePaid('${u.id}','${st.key}');render()">${
-        st.done ? "撤销「"+md(st.curPay)+"已收」" : "收 到 了"}</button>
+
+    <div class="f" style="margin-top:16px">
+      <label>${done?"实际收款日期（可以改）":"实际收款日期"}</label>
+      <input type="date" id="pd" value="${done ? (paidOn(u.id,key)||ymdLocal(tg.pay)) : ymdLocal(t)}"
+             ${done?`onchange="markPaid('${u.id}','${key}',this.value);render()"`:""}>
+      <div class="tip">${done ? "租客实际是哪天给的" : "租客提前或晚几天给都行，改成实际那天再确认"}</div>
+    </div>
+
+    ${ done
+      ? `<button class="btn off" onclick="unmarkPaid('${u.id}','${key}');render()">撤销「已收」</button>`
+      : `<button class="btn" onclick="markPaid('${u.id}','${key}',document.getElementById('pd').value);render()">确认收到</button>` }
     <button class="btn off" onclick="saveNotice('${u.id}')">出一张通知单发给他</button>
   </div>
 
@@ -475,13 +529,17 @@ function vDetail(u){
     <a href="#" style="color:var(--gold)" onclick="go({n:'edit',id:'${u.id}'});return false">去填</a></div>
   </div>`}
 
-  <div class="sec">最近收租 · 点圆圈可以补记</div>
+  <div class="sec">${t.getFullYear()} 年收租 · 点圆圈可以补记</div>
   <div class="panel">
     <div class="hist">
-      ${hist.map(h=>`<div onclick="togglePaid('${u.id}','${h.k}');render()">
-        <div class="hm">${h.t}</div>
-        <div class="hd${isPaid(u.id,h.k)?" on":""}">${isPaid(u.id,h.k)?CHECK:"—"}</div>
-      </div>`).join("")}
+      ${list.map(p=>{
+        const k=pkey(p.pay), ok=isPaid(u.id,k), on=paidOn(u.id,k);
+        const missed=!ok && p.pay<t;                 // 该收的日子过了又没记 = 漏收
+        return `<div onclick="togglePaid('${u.id}','${k}');render()">
+        <div class="hm">${(p.pay.getMonth()+1)}/${p.pay.getDate()}</div>
+        <div class="hd${ok?" on":missed?" miss":""}">${ok?CHECK:missed?"!":"—"}</div>
+        <div class="hn">${ok ? (on ? on.slice(5).replace("-","/") : "已收") : missed ? "漏收" : ""}</div>
+      </div>`;}).join("")}
     </div>
   </div>
 
