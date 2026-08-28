@@ -90,6 +90,10 @@
               display:flex;align-items:center;justify-content:center}
   .calm .t{font-size:16px;font-weight:600;color:#2F5A40}
   .calm .s{font-size:12.5px;color:#5C7A67;margin-top:2px}
+  .calm.soon{background:var(--t-gold)}
+  .calm.soon .ring{background:var(--gold)}
+  .calm.soon .t{color:#7A5A21}
+  .calm.soon .s{color:#8A7247}
 
   /* ---------- 详情 ---------- */
   .back{display:inline-block;font-size:15px;color:var(--ink3);padding:6px 0 14px;cursor:pointer}
@@ -173,7 +177,7 @@ const SEED = { v:1, units:[
   { id:"u1", name:"金融中心",   cycle:"q", dueMonth:11, dueDay:1,  lead:"1m", rent:21000, fee:546  },
   { id:"u2", name:"未来方舟",   cycle:"q", dueMonth:9,  dueDay:2,  lead:"1m", rent:25000, fee:840  },
   { id:"u3", name:"中天写字楼", cycle:"h", dueMonth:11, dueDay:1,  lead:"1m", rent:24000, fee:0    },
-  { id:"u4", name:"碧桂园",     cycle:"q", dueMonth:9,  dueDay:6,  lead:"1m", rent:24789, fee:0    },
+  { id:"u4", name:"碧桂园",     cycle:"q", dueMonth:9,  dueDay:6,  lead:"7d", rent:24789, fee:0    },
   { id:"u5", name:"会展城",     cycle:"h", dueMonth:12, dueDay:1,  lead:"1m", rent:96000, fee:1534 },
   { id:"u6", name:"紫林",       cycle:"m", dueMonth:1,  dueDay:12, lead:"0",  rent:1224,  fee:0    }
 ].map(u=>Object.assign({ wx:"", landlord:"", addr:"", wxid:"" }, u)),
@@ -289,6 +293,7 @@ let VIEW={n:"home"}, FILTER="all";
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const go  = v => { VIEW=v; window.scrollTo(0,0); render(); };
 const CHECK='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const BELL='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
 
 function render(){
   const el=document.getElementById("app");
@@ -350,14 +355,16 @@ function vHome(){
     ${cnt("h")?tab("h","半年付 "+cnt("h")):""}
   </nav>
 
-  ${ due.length ? "" : `
-  <div class="calm">
-    <div class="ring">${CHECK}</div>
+  ${ due.length ? "" : (()=>{
+    const nd = nx ? diff(t,nx.pay) : 999, soon = nd<=7;
+    return `
+  <div class="calm${soon?" soon":""}">
+    <div class="ring">${soon?BELL:CHECK}</div>
     <div>
-      <div class="t">这几天没有要收的</div>
-      <div class="s">${ nx ? "下一笔 "+md(nx.pay)+" · 还有 "+diff(t,nx.pay)+" 天" : "—" }</div>
+      <div class="t">${soon?"快到了":"这几天没有要收的"}</div>
+      <div class="s">${ nx ? md(nx.pay)+" · "+esc(nxU.name)+" · 还有 "+nd+" 天" : "—" }</div>
     </div>
-  </div>`}
+  </div>`;})()}
 
   ${group("该收了",due)}
   ${group("还没到",soon)}
