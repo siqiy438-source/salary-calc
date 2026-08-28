@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#23201C">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="房租看板">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2323201C'/%3E%3Ctext x='32' y='43' font-family='Georgia,serif' font-size='30' fill='%23D4B26A' text-anchor='middle'%3E%C2%A5%3C/text%3E%3C/svg%3E">
+<title>房租看板</title>
+<style>
+  :root{
+    --paper:#F7F4EF; --card:#FFFFFF; --dark:#23201C;
+    --gold:#B8893C; --goldl:#D4B26A;
+    --ink:#14110E; --ink2:#5A5148; --ink3:#948B81;
+    --line:#E7E0D6;
+    --red:#C0453A; --green:#4F8060; --gray:#A79E95;
+    --t-red:#FBEEEC; --t-gold:#FBF3E4; --t-gray:#F1EDE7; --t-green:#E9F2EB;
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{background:var(--paper)}
+  body{
+    margin:0;max-width:560px;margin:0 auto;background:var(--paper);color:var(--ink);
+    font:400 15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:18px 18px calc(28px + var(--safe-b));
+    overscroll-behavior-y:none;
+  }
+  /* 衬线数字，和工资单同一家 */
+  .serif{font-family:"Bodoni 72",Didot,Georgia,"Times New Roman",serif;font-weight:400}
+
+  /* ---------- 顶部深色块 ---------- */
+  .hero{background:var(--dark);border-radius:20px;padding:22px 24px 18px;color:#B6ACA0;
+        box-shadow:0 5px 20px rgba(60,48,36,.10)}
+  .hero .date{font-size:13px;color:#8E857A}
+  .hero .lab{font-size:14px;margin-top:16px}
+  .hero .big{font-size:44px;line-height:1.1;color:var(--goldl);margin:4px 0 14px;
+             letter-spacing:-.01em;word-break:break-all}
+  .bar{height:6px;border-radius:3px;background:#3B352E;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:3px;background:var(--goldl)}
+  .hero .sub{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-top:11px}
+  .hero .nextrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+                 border-top:1px solid #38322C;margin-top:14px;padding-top:14px;font-size:13.5px}
+  .hero .nextrow b{font-size:15px;color:var(--goldl);font-weight:600}
+
+  /* ---------- 标签 ---------- */
+  nav{display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;
+      border-bottom:1px solid var(--line);margin:20px 0 0}
+  nav::-webkit-scrollbar{display:none}
+  .tab{white-space:nowrap;font-size:15px;color:var(--ink3);padding:11px 0;cursor:pointer;
+       position:relative;-webkit-user-select:none;user-select:none}
+  .tab.on{color:var(--ink);font-weight:600}
+  .tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--gold)}
+
+  /* ---------- 分组标题 ---------- */
+  .sec{font-size:13px;color:var(--ink3);margin:20px 2px 10px}
+
+  /* ---------- 卡片 ---------- */
+  .card{display:flex;align-items:center;gap:14px;background:var(--card);border-radius:14px;
+        padding:16px 14px 16px 16px;margin-bottom:9px;
+        box-shadow:0 4px 16px rgba(60,48,36,.07);cursor:pointer}
+  .card.done{opacity:.62}
+  .badge{flex:none;width:52px;height:52px;border-radius:14px;display:flex;flex-direction:column;
+         align-items:center;justify-content:center;line-height:1.1}
+  .badge .m{font-size:10.5px;font-weight:500}
+  .badge .d{font-size:21px;font-weight:600}
+  .b-red{background:var(--t-red);color:var(--red)}
+  .b-gold{background:var(--t-gold);color:var(--gold)}
+  .b-gray{background:var(--t-gray);color:var(--gray)}
+  .b-green{background:var(--t-green);color:var(--green)}
+  .mid{flex:1;min-width:0}
+  .mid .n{font-size:17px;font-weight:600;letter-spacing:-.01em}
+  .mid .s{font-size:12.5px;color:var(--ink3);margin-top:3px;line-height:1.45}
+  .amt{flex:none;font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+  .amt.red{color:var(--red)}
+  .amt.dim{color:var(--ink3)}
+  .tick{flex:none;width:38px;height:38px;border-radius:50%;border:2.5px solid #DBD3C8;
+        display:flex;align-items:center;justify-content:center;margin-left:2px}
+  .tick.on{background:var(--green);border-color:var(--green)}
+  .tick svg{display:none} .tick.on svg{display:block}
+
+  /* ---------- 空状态 ---------- */
+  .calm{display:flex;align-items:center;gap:14px;background:#EFF4F0;border-radius:14px;
+        padding:16px 18px;margin-top:20px}
+  .calm .ring{flex:none;width:42px;height:42px;border-radius:50%;background:var(--green);
+              display:flex;align-items:center;justify-content:center}
+  .calm .t{font-size:16px;font-weight:600;color:#2F5A40}
+  .calm .s{font-size:12.5px;color:#5C7A67;margin-top:2px}
+
+  /* ---------- 详情 ---------- */
+  .back{display:inline-block;font-size:15px;color:var(--ink3);padding:6px 0 14px;cursor:pointer}
+  h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin:0}
+  .lede{font-size:13px;color:var(--ink3);margin:5px 0 18px}
+  .panel{background:var(--card);border-radius:16px;padding:20px;margin-bottom:14px;
+         box-shadow:0 4px 16px rgba(60,48,36,.07)}
+  .panel .cap{font-size:13px;color:var(--ink3)}
+  .panel .money{font-size:38px;margin:2px 0 4px;letter-spacing:-.01em}
+  .chip{float:right;font-size:12.5px;font-weight:500;padding:6px 12px;border-radius:7px}
+  .c-red{background:var(--t-red);color:var(--red)}
+  .c-gold{background:var(--t-gold);color:var(--gold)}
+  .c-gray{background:var(--t-gray);color:var(--gray)}
+  .c-green{background:var(--t-green);color:var(--green)}
+  .brk{font-size:12.5px;color:var(--ink3);margin-top:6px;line-height:1.7}
+  button{font:inherit;cursor:pointer;border:0;background:none;touch-action:manipulation}
+  .btn{display:block;width:100%;padding:15px;border-radius:9px;background:var(--gold);
+       color:#FCFAF7;font-size:16px;font-weight:600;letter-spacing:.06em;margin-top:16px}
+  .btn.off{background:none;border:1px solid var(--line);color:var(--ink2);font-weight:400;letter-spacing:0}
+  .btn:active{opacity:.65}
+
+  .row{display:flex;align-items:center;gap:12px;padding:15px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .row .k{font-size:12px;color:var(--ink3)}
+  .row .v{font-size:17px;font-weight:500;margin-top:2px;word-break:break-all}
+  .cp{flex:none;padding:9px 15px;border:1px solid var(--gold);border-radius:8px;
+      color:var(--gold);font-size:13px;font-weight:500}
+  .cp:active{background:var(--t-gold)}
+  .hist{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+  .hist::-webkit-scrollbar{display:none}
+  .hist>div{flex:none;text-align:center;min-width:58px;cursor:pointer}
+  .hist .hm{font-size:12px;color:var(--ink3)}
+  .hist .hd{width:34px;height:34px;border-radius:50%;margin:6px auto 0;border:2.5px solid #DBD3C8;
+            display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:13px}
+  .hist .hd.on{background:var(--green);border-color:var(--green)}
+
+  /* ---------- 表单 ---------- */
+  .f{padding:12px 0;border-bottom:1px solid var(--line)}
+  .f label{display:block;font-size:12px;color:var(--ink3)}
+  .f input,.f select{width:100%;border:0;background:transparent;padding:4px 0 0;
+    font:600 17px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+    color:var(--ink);min-height:32px;appearance:none;border-radius:0}
+  .f input:focus,.f select:focus{outline:none}
+  .f:focus-within{border-bottom-color:var(--gold)}
+  .f .tip{font-size:11.5px;color:var(--ink3);margin-top:4px;line-height:1.6}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+  .foot{font-size:12px;color:var(--ink3);text-align:center;margin-top:26px;line-height:1.9}
+  .foot a{color:var(--gold);text-decoration:none}
+  textarea{width:100%;min-height:110px;border:1px solid var(--line);border-radius:9px;padding:11px;
+    font:400 12px/1.5 ui-monospace,Menlo,monospace;background:var(--card);color:var(--ink2);
+    resize:vertical}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ==================================================================
+   房租看板
+   数据全在这台设备的 localStorage 里，仓库里一个字都没有。
+   换设备靠「生成链接」把数据编码进网址，不需要服务器。
+   ================================================================== */
+
+const KEY = "rent-board-v1";
+const STEP     = { m:1,  q:3,  h:6  };   // 一期几个月
+const PER_YEAR = { m:12, q:4,  h:2  };   // 一年几期
+const CYCLE    = { m:"月付", q:"季付", h:"半年付" };
+const LEAD     = { "0":"", "1m":"提前一个月", "7d":"提前一周" };
+
+/* ---------- 数据 ---------- */
+function blank(){ return { v:1, units:[], paid:{} }; }
+function load(){
+  try{ const d=JSON.parse(localStorage.getItem(KEY)); return (d&&d.units)?d:blank(); }
+  catch(e){ return blank(); }
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); }
+let DB = load();
+
+/* ---------- 日期 ----------
+   存的是「到期日」（几月几号）+「提前多久」。
+   该收钱的日子 = 到期日往前推。全程没有任何日期被改写，
+   都是拿今天现算出来的。                                        */
+const pad2 = n => String(n).padStart(2,"0");
+const dim  = (y,m) => new Date(y,m,0).getDate();          // m 是 1-12
+function mk(y,m,d){                                        // 跨年 + 月末夹取
+  while(m>12){ m-=12; y++; }
+  while(m<1) { m+=12; y--; }
+  return new Date(y, m-1, Math.min(d, dim(y,m)));
+}
+const pkey    = dt => dt.getFullYear()+"-"+pad2(dt.getMonth()+1);
+const md      = dt => (dt.getMonth()+1)+" 月 "+dt.getDate()+" 日";
+const mdTight = dt => (dt.getMonth()+1)+"月"+dt.getDate()+"日";
+const diff    = (a,b) => Math.round((b-a)/86400000);
+function today(){ const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),t.getDate()); }
+
+/* 到期日 → 该收日 */
+function payOf(u, due){
+  if(u.lead==="1m") return mk(due.getFullYear(), due.getMonth(), u.dueDay);   // 往前一个月
+  if(u.lead==="7d"){ const d=new Date(due); d.setDate(d.getDate()-7); return d; }
+  return due;
+}
+/* 最近一个已到的该收日 + 下一个 */
+function periods(u, ref){
+  const step=STEP[u.cycle], list=[];
+  for(let y=ref.getFullYear()-1; y<=ref.getFullYear()+1; y++)
+    for(let m=1; m<=12; m++)
+      if(((((m-u.dueMonth)%step)+step)%step)===0){
+        const due=mk(y,m,u.dueDay);
+        list.push({ due, pay:payOf(u,due) });
+      }
+  list.sort((a,b)=>a.pay-b.pay);
+  let cur=null,next=null;
+  for(const p of list){ if(p.pay<=ref) cur=p; else { next=p; break; } }
+  return {cur,next};
+}
+
+const amountOf = u => (+u.rent||0)+(+u.fee||0);
+const paidList = id => DB.paid[id] || [];
+const isPaid   = (id,k) => paidList(id).indexOf(k)>=0;
+function togglePaid(id,k){
+  const a=paidList(id).slice(), i=a.indexOf(k);
+  if(i>=0) a.splice(i,1); else a.push(k);
+  DB.paid[id]=a.sort(); save();
+}
+
+/* 一个门面此刻的状态 */
+function stateOf(u){
+  const t=today(), {cur,next}=periods(u,t);
+  const amt=amountOf(u);
+  const curKey=cur?pkey(cur.pay):null;
+  const done=curKey && isPaid(u.id,curKey);
+  const badgeM = u.cycle==="m" ? "每月" : null;
+
+  if(cur && !done){
+    const od=diff(cur.pay,t);
+    return { g:0, key:curKey, amt, done:false, c: od===0?"gold":"red",
+             bm: badgeM||((cur.pay.getMonth()+1)+" 月"), bd: cur.pay.getDate(),
+             sub: od===0?"今天该收":"逾期 "+od+" 天",
+             target:cur, curPay:cur.pay };
+  }
+  const nd=diff(t,next.pay);
+  const since=cur?diff(cur.pay,t):9999;
+  if(since<=31){   // 刚收不久，归到「本期已收」
+    return { g:2, key:curKey, amt, done:true, c:"green", curPay:cur.pay,
+             bm: badgeM||((next.pay.getMonth()+1)+" 月"), bd: next.pay.getDate(),
+             sub: md(cur.pay)+"已收", target:next };
+  }
+
+  return { g:1, key:curKey, amt, done:true, c:"gray", curPay:cur?cur.pay:null,
+           bm: badgeM||((next.pay.getMonth()+1)+" 月"), bd: next.pay.getDate(),
+           sub:"还有 "+nd+" 天", target:next };
+}
+
+/* ---------- 汇总 ---------- */
+const yuan = v => "¥"+(+v||0).toLocaleString("zh-CN");
+function yearStats(){
+  const y=new Date().getFullYear();
+  let got=0,total=0;
+  DB.units.forEach(u=>{
+    const a=amountOf(u);
+    total += a*PER_YEAR[u.cycle];
+    paidList(u.id).forEach(k=>{ if(k.slice(0,4)==String(y)) got+=a; });
+  });
+  return {got,total,pct: total?Math.round(got/total*100):0};
+}
+
+/* ---------- 视图 ---------- */
+let VIEW={n:"home"}, FILTER="all";
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const go  = v => { VIEW=v; window.scrollTo(0,0); render(); };
+const CHECK='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+function render(){
+  const el=document.getElementById("app");
+  if(VIEW.n==="home")   el.innerHTML=vHome();
+  if(VIEW.n==="detail") el.innerHTML=vDetail(DB.units.find(u=>u.id===VIEW.id));
+  if(VIEW.n==="edit")   el.innerHTML=vEdit(DB.units.find(u=>u.id===VIEW.id));
+  if(VIEW.n==="set")    el.innerHTML=vSet();
+}
+
+/* ---------- 首页 ---------- */
+function vHome(){
+  if(!DB.units.length) return `
+    <div class="hero">
+      <div class="date">房租看板</div>
+      <div class="lab">还没有门面</div>
+      <div class="big serif">¥0</div>
+      <div class="sub"><span>加进来之后，这里显示今年收了多少</span></div>
+    </div>
+    <button class="btn" onclick="go({n:'edit',id:null})">＋ 添加第一个门面</button>
+    <button class="btn off" onclick="go({n:'set'})">从链接导入</button>
+    <p class="foot"><a href="index.html">← 回工资单</a></p>`;
+
+  const t=today(), s=yearStats();
+  const rows=DB.units.map(u=>({u, st:stateOf(u)}))
+    .filter(r=>FILTER==="all"||r.u.cycle===FILTER);
+
+  const due =rows.filter(r=>r.st.g===0).sort((a,b)=>a.st.target.pay-b.st.target.pay);
+  const soon=rows.filter(r=>r.st.g===1).sort((a,b)=>a.st.target.pay-b.st.target.pay);
+  const just=rows.filter(r=>r.st.g===2).sort((a,b)=>b.st.target.pay-a.st.target.pay);
+
+  const dueSum=due.reduce((n,r)=>n+r.st.amt,0);
+  const nx=rows.map(r=>r.st.target).sort((a,b)=>a.pay-b.pay)[0];
+  const nxU=nx?rows.find(r=>r.st.target===nx).u:null;
+
+  const cnt=c=>DB.units.filter(u=>u.cycle===c).length;
+  const tab=(k,t2)=>`<div class="tab${FILTER===k?" on":""}" onclick="FILTER='${k}';render()">${t2}</div>`;
+
+  return `
+  <div class="hero">
+    <div class="date">${t.getFullYear()} 年 · ${t.getMonth()+1} 月 ${t.getDate()} 日</div>
+    <div class="lab">今年已收</div>
+    <div class="big serif">${yuan(s.got)}</div>
+    <div class="bar"><i style="width:${Math.min(100,s.pct)}%"></i></div>
+    <div class="sub">
+      <span>还差 ${yuan(s.total-s.got)} · 全年 ${yuan(s.total)}</span>
+      <span style="color:#8E857A">${s.pct}%</span>
+    </div>
+    <div class="nextrow">
+      <span>${due.length?"现在待收":"下一笔"}</span>
+      <b>${ due.length ? yuan(dueSum)+" · "+due.length+" 家"
+                       : (nx? md(nx.pay)+" · "+esc(nxU.name) : "—") }</b>
+    </div>
+  </div>
+
+  <nav>
+    ${tab("all","全部 "+DB.units.length)}
+    ${cnt("m")?tab("m","月付 "+cnt("m")):""}
+    ${cnt("q")?tab("q","季付 "+cnt("q")):""}
+    ${cnt("h")?tab("h","半年付 "+cnt("h")):""}
+  </nav>
+
+  ${ due.length ? "" : `
+  <div class="calm">
+    <div class="ring">${CHECK}</div>
+    <div>
+      <div class="t">这几天没有要收的</div>
+      <div class="s">${ nx ? "下一笔 "+md(nx.pay)+" · 还有 "+diff(t,nx.pay)+" 天" : "—" }</div>
+    </div>
+  </div>`}
+
+  ${group("该收了",due)}
+  ${group("还没到",soon)}
+  ${group("本期已收",just)}
+
+  <button class="btn off" onclick="go({n:'edit',id:null})">＋ 添加门面</button>
+  <p class="foot">
+    点卡片看详情 · 点右边的圈标记收到<br>
+    <a href="#" onclick="go({n:'set'});return false">设置与备份</a> ·
+    <a href="index.html">回工资单</a>
+  </p>`;
+}
+
+function group(title,list){
+  if(!list.length) return "";
+  return `<div class="sec">${title} · ${list.length} 家</div>` +
+    list.map(({u,st})=>`
+    <div class="card${st.done?" done":""}" onclick="go({n:'detail',id:'${u.id}'})">
+      <div class="badge b-${st.c}"><span class="m">${st.bm}</span><span class="d">${st.bd}</span></div>
+      <div class="mid">
+        <div class="n">${esc(u.name)}</div>
+        <div class="s">${u.wx?esc(u.wx)+" · ":""}${st.sub}</div>
+      </div>
+      <div class="amt${st.done?" dim":(st.c==="red"?" red":"")}">${yuan(st.amt)}</div>
+      ${st.g===1?"":`<div class="tick${st.done?" on":""}"
+           onclick="event.stopPropagation();togglePaid('${u.id}','${st.key}');render()">${CHECK}</div>`}
+    </div>`).join("");
+}
+
+/* ---------- 详情 ---------- */
+function vDetail(u){
+  if(!u) return (go({n:"home"}),"");
+  const st=stateOf(u), t=today();
+  const nd=diff(t,st.target.pay);
+  const label = st.g===0 ? "本期应收" : "下期应收";
+
+  const info=[["房东姓名",u.landlord],["门面地址",u.addr],["房东微信号",u.wxid]]
+    .filter(r=>r[1]);
+
+  /* 最近 6 期 */
+  const step=STEP[u.cycle], hist=[];
+  let d=st.g===0?st.target.due:periods(u,new Date(st.target.pay-86400000)).cur.due;
+  for(let i=0;i<6;i++){
+    const due=mk(d.getFullYear(), d.getMonth()+1-step*i, u.dueDay);
+    const pay=payOf(u,due);
+    const yy=pay.getFullYear();
+    hist.push({ k:pkey(pay),
+                t:(yy===t.getFullYear()?"":String(yy).slice(2)+"年 ")+(pay.getMonth()+1)+" 月" });
+  }
+
+  return `
+  <span class="back" onclick="go({n:'home'})">‹  返回</span>
+  <h1>${esc(u.name)}</h1>
+  <div class="lede">${u.wx?esc(u.wx)+" · ":""}${CYCLE[u.cycle]} · ${
+     u.cycle==="m" ? "每月 "+u.dueDay+" 号" : mdTight(st.target.due)+"到期"
+  }${u.lead!=="0"?"，"+LEAD[u.lead]:""}</div>
+
+  <div class="panel">
+    <span class="chip c-${st.c}">${st.g===0?st.sub:"还有 "+nd+" 天"}</span>
+    <div class="cap">${label}</div>
+    <div class="money serif">${yuan(st.amt)}</div>
+    <div class="brk">
+      租金 ${yuan(u.rent)}${ +u.fee ? " ＋ 代收物业 "+yuan(u.fee) : "（物业租客自付）" }<br>
+      该收日 ${md(st.target.pay)}
+      ${ +u.fee ? "<br><span style=\"color:var(--gold)\">其中物业 "+yuan(u.fee)+" 收到后要转交物业公司</span>" : "" }
+    </div>
+    <button class="btn${st.done?" off":""}"
+      onclick="togglePaid('${u.id}','${st.key}');render()">${
+        st.done ? "撤销「"+md(st.curPay)+"已收」" : "收 到 了"}</button>
+  </div>
+
+  ${ info.length ? `
+  <div class="sec">收款信息 · 点「复制」直接粘到微信</div>
+  <div class="panel" style="padding:2px 20px">
+    ${info.map(([k,v])=>`
+      <div class="row">
+        <div style="flex:1;min-width:0"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>
+        <button class="cp" onclick="copy(this,${JSON.stringify(v).replace(/"/g,"&quot;")})">复制</button>
+      </div>`).join("")}
+  </div>` : `
+  <div class="sec">收款信息</div>
+  <div class="panel"><div class="brk">还没填房东姓名、地址和微信号。
+    <a href="#" style="color:var(--gold)" onclick="go({n:'edit',id:'${u.id}'});return false">去填</a></div>
+  </div>`}
+
+  <div class="sec">最近收租 · 点圆圈可以补记</div>
+  <div class="panel">
+    <div class="hist">
+      ${hist.map(h=>`<div onclick="togglePaid('${u.id}','${h.k}');render()">
+        <div class="hm">${h.t}</div>
+        <div class="hd${isPaid(u.id,h.k)?" on":""}">${isPaid(u.id,h.k)?CHECK:"—"}</div>
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <button class="btn off" onclick="go({n:'edit',id:'${u.id}'})">修改这个门面</button>`;
+}
+
+/* ---------- 编辑 ---------- */
+function vEdit(u){
+  const n = u || { id:null,name:"",wx:"",cycle:"m",dueMonth:1,dueDay:1,lead:"0",
+                   rent:"",fee:"",landlord:"",addr:"",wxid:"" };
+  const opt=(v,t,cur)=>`<option value="${v}"${v==cur?" selected":""}>${t}</option>`;
+  const months=[...Array(12)].map((_,i)=>opt(i+1,(i+1)+" 月",n.dueMonth)).join("");
+  const days  =[...Array(31)].map((_,i)=>opt(i+1,(i+1)+" 号",n.dueDay)).join("");
+  return `
+  <span class="back" onclick="go(${u?`{n:'detail',id:'${u.id}'}`:"{n:'home'}"})">‹  返回</span>
+  <h1>${u?"修改门面":"新门面"}</h1>
+  <div class="lede">填「到期日」和「提前多久」，该哪天收程序自己算</div>
+
+  <div class="f"><label>门面名称</label>
+    <input id="f-name" value="${esc(n.name)}" placeholder="比如 街口那间"></div>
+  <div class="f"><label>租客微信名（在微信里搜的那个名字）</label>
+    <input id="f-wx" value="${esc(n.wx)}" placeholder="可以先空着"></div>
+
+  <div class="f"><label>收租周期</label>
+    <select id="f-cycle" onchange="document.getElementById('mrow').style.display=this.value==='m'?'none':'block'">
+      ${opt("m","月付 — 每月一次",n.cycle)}
+      ${opt("q","季付 — 每三个月一次",n.cycle)}
+      ${opt("h","半年付 — 每六个月一次",n.cycle)}
+    </select></div>
+
+  <div id="mrow" style="display:${n.cycle==="m"?"none":"block"}">
+    <div class="f"><label>其中一期的到期月份</label>
+      <select id="f-dm">${months}</select>
+      <div class="tip">填任意一期就行，其余几期程序按周期自己往后排。
+        比如季付填 9 月，就是 9 / 12 / 3 / 6 月。</div></div>
+  </div>
+
+  <div class="f"><label>到期几号</label><select id="f-dd">${days}</select></div>
+
+  <div class="f"><label>租客提前多久交</label>
+    <select id="f-lead">
+      ${opt("0","不提前 — 到期当天交",n.lead)}
+      ${opt("1m","提前一个月",n.lead)}
+      ${opt("7d","提前一周",n.lead)}
+    </select>
+    <div class="tip" id="leadtip"></div></div>
+
+  <div class="two">
+    <div class="f"><label>每期租金（元）</label>
+      <input id="f-rent" type="number" inputmode="numeric" value="${n.rent}" placeholder="0"></div>
+    <div class="f"><label>每期代收物业（元）</label>
+      <input id="f-fee" type="number" inputmode="numeric" value="${n.fee}" placeholder="0">
+      <div class="tip">租客自付就填 0</div></div>
+  </div>
+
+  <div class="sec">收款信息（详情页里可以一键复制）</div>
+  <div class="f"><label>房东姓名</label><input id="f-landlord" value="${esc(n.landlord)}"></div>
+  <div class="f"><label>门面地址</label><input id="f-addr" value="${esc(n.addr)}"></div>
+  <div class="f"><label>房东微信号</label><input id="f-wxid" value="${esc(n.wxid)}"></div>
+
+  <button class="btn" onclick="saveUnit('${u?u.id:""}')">保 存</button>
+  ${u?`<button class="btn off" style="color:var(--red)" onclick="delUnit('${u.id}')">删除这个门面</button>`:""}`;
+}
+
+function saveUnit(id){
+  const g=k=>document.getElementById("f-"+k).value.trim();
+  const name=g("name");
+  if(!name){ alert("门面名称不能空"); return; }
+  const cycle=g("cycle");
+  const o={
+    id: id || ("u"+Date.now().toString(36)),
+    name, wx:g("wx"), cycle,
+    dueMonth: cycle==="m" ? 1 : +g("dm"),
+    dueDay: +g("dd"), lead:g("lead"),
+    rent:+g("rent")||0, fee:+g("fee")||0,
+    landlord:g("landlord"), addr:g("addr"), wxid:g("wxid")
+  };
+  const i=DB.units.findIndex(u=>u.id===id);
+  if(i>=0) DB.units[i]=o; else DB.units.push(o);
+  save(); go({n:"detail",id:o.id});
+}
+function delUnit(id){
+  if(!confirm("删掉这个门面？收租记录也会一起删掉。")) return;
+  DB.units=DB.units.filter(u=>u.id!==id); delete DB.paid[id];
+  save(); go({n:"home"});
+}
+
+/* ---------- 设置 ---------- */
+const b64e = s => btoa(String.fromCharCode.apply(null, new TextEncoder().encode(s)));
+const b64d = s => new TextDecoder().decode(Uint8Array.from(atob(s), c=>c.charCodeAt(0)));
+function shareLink(){
+  const s=b64e(JSON.stringify(DB)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  return location.origin+location.pathname+"#d="+s;
+}
+function vSet(){
+  return `
+  <span class="back" onclick="go({n:'home'})">‹  返回</span>
+  <h1>设置与备份</h1>
+  <div class="lede">数据只存在这台手机里，没有服务器。换手机要靠下面的链接搬过去。</div>
+
+  <div class="sec">搬到另一台手机</div>
+  <div class="panel">
+    <div class="brk">生成一条带数据的链接，用微信发过去，对方点开就存进他的手机。</div>
+    <button class="btn" onclick="mkLink()">生成链接</button>
+    <textarea id="lk" readonly style="margin-top:12px;display:none"></textarea>
+    <button class="btn off" id="lkcp" style="display:none"
+      onclick="copy(this,document.getElementById('lk').value)">复制链接</button>
+  </div>
+
+  <div class="sec">备份 / 恢复</div>
+  <div class="panel">
+    <div class="brk">把下面这段存到微信收藏，哪天数据没了粘回来就能恢复。</div>
+    <textarea id="js">${esc(JSON.stringify(DB))}</textarea>
+    <button class="btn off" onclick="copy(this,document.getElementById('js').value)">复制备份</button>
+    <button class="btn off" onclick="restore()">用上面这段恢复</button>
+  </div>
+
+  <div class="panel">
+    <button class="btn off" style="color:var(--red)" onclick="wipe()">清空全部数据</button>
+  </div>
+  <p class="foot"><a href="index.html">← 回工资单</a></p>`;
+}
+function mkLink(){
+  const ta=document.getElementById("lk");
+  ta.value=shareLink(); ta.style.display="block";
+  document.getElementById("lkcp").style.display="block";
+}
+function restore(){
+  try{
+    const d=JSON.parse(document.getElementById("js").value);
+    if(!d.units) throw 0;
+    if(!confirm("用这段数据覆盖现在的记录？")) return;
+    DB=d; save(); go({n:"home"});
+  }catch(e){ alert("这段数据读不出来"); }
+}
+function wipe(){
+  if(!confirm("清空全部门面和收租记录？删了找不回来。")) return;
+  localStorage.removeItem(KEY); DB=blank(); go({n:"home"});
+}
+
+/* ---------- 复制 ---------- */
+function copy(btn,text){
+  const old=btn.textContent;
+  const ok=()=>{ btn.textContent="已复制"; setTimeout(()=>btn.textContent=old,1400); };
+  const fb=()=>{
+    const ta=document.createElement("textarea");
+    ta.value=text; ta.style.position="fixed"; ta.style.top="-999px";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); ok(); }catch(e){ alert("复制失败，请长按选中"); }
+    ta.remove();
+  };
+  if(navigator.clipboard && window.isSecureContext)
+    navigator.clipboard.writeText(text).then(ok,fb);
+  else fb();
+}
+
+/* ---------- 从链接导入 ---------- */
+(function(){
+  const m=location.hash.match(/^#d=(.+)$/);
+  if(!m) return;
+  try{
+    const d=JSON.parse(b64d(m[1].replace(/-/g,"+").replace(/_/g,"/")));
+    if(!d.units) throw 0;
+    history.replaceState(null,"",location.pathname);
+    if(confirm("导入 "+d.units.length+" 个门面？\n会覆盖这台设备上现在的记录。")){
+      DB=d; save();
+    }
+  }catch(e){
+    history.replaceState(null,"",location.pathname);
+    alert("链接里的数据读不出来");
+  }
+})();
+
+render();
+</script>
+</body>
+</html>
