@@ -582,17 +582,20 @@ function copy(btn,text){
 (function(){
   const m=location.hash.match(/^#d=(.+)$/);
   if(!m) return;
+  const done=()=>history.replaceState(null,"",location.pathname);
+  let d;
   try{
-    const d=JSON.parse(b64d(m[1].replace(/-/g,"+").replace(/_/g,"/")));
+    d=JSON.parse(b64d(m[1].replace(/-/g,"+").replace(/_/g,"/")));
     if(!d.units) throw 0;
-    history.replaceState(null,"",location.pathname);
-    if(confirm("导入 "+d.units.length+" 个门面？\n会覆盖这台设备上现在的记录。")){
-      DB=d; save();
-    }
-  }catch(e){
-    history.replaceState(null,"",location.pathname);
-    alert("链接里的数据读不出来");
+  }catch(e){ done(); alert("链接里的数据读不出来"); return; }
+
+  /* 手机上本来就是空的就直接装，不弹框问。
+     第一次打开时问「会覆盖现有记录」既吓人又没意义，点错一下链接就白点了。 */
+  if(DB.units.length &&
+     !confirm("导入 "+d.units.length+" 个门面？\n会覆盖这台手机上现在的 "+DB.units.length+" 个。")){
+    done(); return;
   }
+  DB=d; save(); done();
 })();
 
 render();
