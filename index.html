@@ -73,6 +73,14 @@
     font:400 10px/1 "Songti SC","STSong","Source Han Serif SC",serif;
     letter-spacing:.56em;text-indent:.56em;color:var(--ink3)
   }
+  /* 顶部右上角切到房租看板。原来只有汇总页最底下有个链接，
+     要往右滑七页才够得着，等于回不来。 */
+  .swap{
+    display:inline-block;font-size:12px;color:var(--gold);text-decoration:none;
+    border:1px solid var(--gold-lite);border-radius:999px;padding:5px 12px;
+    margin-bottom:7px;white-space:nowrap;letter-spacing:.02em
+  }
+  .swap:active{opacity:.6}
   .month{position:relative}
   .month input{
     /* 16px 是底线：iOS Safari 上小于 16px 的输入框一聚焦就整页放大 */
@@ -253,7 +261,8 @@
       <div class="wm-rule"></div>
       <div class="wm-cn">工资单</div>
     </div>
-    <div>
+    <div style="text-align:right">
+      <a class="swap" href="rent.html">房租看板 ›</a>
       <div class="month"><input type="month" id="month"></div>
       <div class="days" id="daysTip">本月 30 天</div>
     </div>

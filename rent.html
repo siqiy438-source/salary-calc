@@ -36,7 +36,13 @@
   /* ---------- 顶部深色块 ---------- */
   .hero{background:var(--dark);border-radius:20px;padding:22px 24px 18px;color:#B6ACA0;
         box-shadow:0 5px 20px rgba(60,48,36,.10)}
+  .herotop{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .hero .date{font-size:13px;color:#8E857A}
+  .hero .swap{
+    font-size:12px;color:var(--goldl);text-decoration:none;white-space:nowrap;
+    border:1px solid #4B4239;border-radius:999px;padding:5px 12px;letter-spacing:.02em
+  }
+  .hero .swap:active{opacity:.6}
   .hero .lab{font-size:14px;margin-top:16px}
   .hero .big{font-size:44px;line-height:1.1;color:var(--goldl);margin:4px 0 14px;
              letter-spacing:-.01em;word-break:break-all}
@@ -390,7 +396,8 @@ function render(){
 function vHome(){
   if(!DB.units.length) return `
     <div class="hero">
-      <div class="date">房租看板</div>
+      <div class="herotop"><span class="date">房租看板</span>
+        <a class="swap" href="index.html">工资单 ›</a></div>
       <div class="lab">还没有门面</div>
       <div class="big serif">¥0</div>
       <div class="sub"><span>加进来之后，这里显示今年收了多少</span></div>
@@ -416,7 +423,10 @@ function vHome(){
 
   return `
   <div class="hero">
-    <div class="date">${t.getFullYear()} 年 · ${t.getMonth()+1} 月 ${t.getDate()} 日</div>
+    <div class="herotop">
+      <span class="date">${t.getFullYear()} 年 · ${t.getMonth()+1} 月 ${t.getDate()} 日</span>
+      <a class="swap" href="index.html">工资单 ›</a>
+    </div>
     <div class="lab">今年已收</div>
     <div class="big serif">${yuan(s.got)}</div>
     <div class="bar"><i style="width:${Math.min(100,s.pct)}%"></i></div>
