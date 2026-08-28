@@ -159,13 +159,41 @@ const PER_YEAR = { m:12, q:4,  h:2  };   // 一年几期
 const CYCLE    = { m:"月付", q:"季付", h:"半年付" };
 const LEAD     = { "0":"", "1m":"提前一个月", "7d":"提前一周" };
 
+/* ---------- 出厂数据 ----------
+   只写门面的「结构」：名字、每期金额、到期日、提前多久。
+
+   租客微信名（wx）和房东姓名 / 地址 / 微信号（landlord / addr / wxid）
+   一律留空，不许往这里填。这个仓库是公开的，写进来就等于公开在网上，
+   而且进了 git 历史删不掉。那几项在各自手机上用「修改这个门面」填，
+   填完只存在那台手机的 localStorage 里。
+
+   paid 是 2026-08-28 那天的快照，只在全新设备第一次打开时用一次；
+   之后任何一次打勾都会把整份数据存进本机，出厂数据不再介入。      */
+const SEED = { v:1, units:[
+  { id:"u1", name:"金融中心",   cycle:"q", dueMonth:11, dueDay:1,  lead:"1m", rent:21000, fee:546  },
+  { id:"u2", name:"未来方舟",   cycle:"q", dueMonth:9,  dueDay:2,  lead:"1m", rent:25000, fee:840  },
+  { id:"u3", name:"中天写字楼", cycle:"h", dueMonth:11, dueDay:1,  lead:"1m", rent:24000, fee:0    },
+  { id:"u4", name:"碧桂园",     cycle:"q", dueMonth:9,  dueDay:6,  lead:"1m", rent:24789, fee:0    },
+  { id:"u5", name:"会展城",     cycle:"h", dueMonth:12, dueDay:1,  lead:"1m", rent:96000, fee:1534 },
+  { id:"u6", name:"紫林",       cycle:"m", dueMonth:1,  dueDay:12, lead:"0",  rent:1224,  fee:0    }
+].map(u=>Object.assign({ wx:"", landlord:"", addr:"", wxid:"" }, u)),
+paid:{
+  u1:["2026-01","2026-04","2026-07"],
+  u2:["2026-02","2026-05","2026-08"],
+  u3:["2026-04"],
+  u4:["2026-02","2026-05","2026-08"],
+  u5:["2026-05"],
+  u6:["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08"]
+}};
+
 /* ---------- 数据 ---------- */
-function blank(){ return { v:1, units:[], paid:{} }; }
+let FROM_SEED = false;                       // 这份是出厂数据，还没被人动过
 function load(){
-  try{ const d=JSON.parse(localStorage.getItem(KEY)); return (d&&d.units)?d:blank(); }
-  catch(e){ return blank(); }
+  try{ const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.units) return d; }catch(e){}
+  FROM_SEED = true;
+  return JSON.parse(JSON.stringify(SEED));
 }
-function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); }
+function save(){ FROM_SEED=false; localStorage.setItem(KEY, JSON.stringify(DB)); }
 let DB = load();
 
 /* ---------- 日期 ----------
@@ -591,7 +619,7 @@ function copy(btn,text){
 
   /* 手机上本来就是空的就直接装，不弹框问。
      第一次打开时问「会覆盖现有记录」既吓人又没意义，点错一下链接就白点了。 */
-  if(DB.units.length &&
+  if(!FROM_SEED && DB.units.length &&
      !confirm("导入 "+d.units.length+" 个门面？\n会覆盖这台手机上现在的 "+DB.units.length+" 个。")){
     done(); return;
   }
