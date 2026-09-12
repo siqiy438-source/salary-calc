@@ -250,6 +250,39 @@
     .slide{width:auto;padding:0 0 26px;break-inside:avoid;overflow:visible}
     .total .amt{color:#000}
   }
+
+  .summary-table{overflow-x:auto;width:100%}.summary-state{display:block;font-size:10px;color:var(--ink3)}.total .amt.incomplete{font-size:24px!important}
+  .brand>div:last-child{min-width:0;flex:1}.wordmark{flex-shrink:0}.month input{width:100%;min-width:0;max-width:170px}
+  .deck{min-height:0}.slide>*{flex-shrink:0}.slide{padding-bottom:calc(28px + var(--safe-b))}.total{margin-top:24px}
+  button.tab{flex:none;border:0;min-height:46px;line-height:1.4;letter-spacing:0;border-radius:0}
+  .ledger-toolbar{display:flex;justify-content:space-between;flex:none;padding:2px 18px;border-bottom:1px solid var(--line)}
+  .ledger-toolbar button{font-size:12px;min-height:40px;padding:8px 0;color:var(--ink2);flex:none;letter-spacing:0}
+  .save-notice{font-size:12px;padding:8px 18px;border-bottom:1px solid var(--line);color:var(--ink2);flex:none;max-height:90px;overflow:auto}
+  .save-notice.error,.dialog-error{color:var(--red)}
+  .save-notice button{padding:0 8px;min-height:30px;font-size:12px;color:inherit;text-decoration:underline}
+  .leave-panel{border-top:1px solid var(--gold-lite);margin-top:20px;padding-top:12px}
+  h3{font-size:14px;font-weight:500;margin:0 0 12px;color:var(--gold);letter-spacing:.08em}
+  .leave-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px}
+  .leave-grid div{display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--ink2)}
+  .leave-grid strong{color:var(--ink);white-space:nowrap;font-weight:600}
+  .leave-grid .closing{grid-column:1/-1;border-top:1px solid var(--line-soft);padding-top:8px}
+  .leave-input{margin-top:10px}.leave-input input{font-size:20px;min-height:44px}
+  .record-state{font-size:12px;line-height:1.6;margin-top:10px;color:var(--ink2)}
+  .record-state button,.history-button{font-size:12px;color:var(--gold);padding:4px 0;min-height:36px;flex:none;letter-spacing:0;text-align:left}
+  .history-button{color:var(--ink3)}
+  dialog{width:calc(100% - 28px);max-width:490px;max-height:85dvh;overflow:auto;background:var(--paper);color:var(--ink);padding:22px;border:1px solid var(--gold-lite);border-radius:16px}
+  dialog::backdrop{background:rgba(18,15,12,.5)}
+  dialog p{font-size:13px;line-height:1.8;color:var(--ink2)}
+  dialog input,dialog textarea{width:100%;min-height:44px;font:inherit;font-size:16px;padding:8px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:4px}
+  dialog label{display:block;font-size:12px;margin:12px 0 5px;color:var(--ink2)}
+  dialog textarea{height:130px;resize:vertical}dialog .f input{border:0}
+  dialog .acts{position:sticky;bottom:-22px;background:var(--paper);padding:12px 0;margin-bottom:0}
+  .dialog-error{font-size:13px;line-height:1.7;margin-top:10px}
+  .history-entry{border-top:1px solid var(--line);padding:12px 0;font-size:13px}
+  .history-entry p{margin:4px 0}.backup-actions{display:flex;flex-wrap:wrap;gap:8px}.backup-actions button{font-size:12px;min-width:45%}
+  button:disabled{opacity:.45;cursor:default}#printArea{display:none}
+  @media(max-width:359px){.wm-en{font-size:24px;letter-spacing:.25em}.leave-grid{gap:10px}.leave-grid div{font-size:11px}.acts{flex-wrap:wrap}.acts button{min-width:40%}}
+  @media print{body>*:not(#printArea){display:none!important}#printArea{display:block}.print-slip{break-after:page}.print-slip:last-child{break-after:auto}.print-slip h2{margin:12px 0}.print-slip table{margin-bottom:14px}}
 </style>
 </head>
 <body>
@@ -263,15 +296,19 @@
     </div>
     <div style="text-align:right">
       <a class="swap" href="rent.html">房租看板 ›</a>
-      <div class="month"><input type="month" id="month"></div>
+      <div class="month"><input type="month" id="month" aria-label="工资月份"></div>
       <div class="days" id="daysTip">本月 30 天</div>
     </div>
   </div>
 </header>
 
+<div class="ledger-toolbar"><button type="button" onclick="openSetup()" id="setupButton">启用休假账本</button><button type="button" onclick="openBackup()">备份与恢复</button></div>
+<div id="saveNotice" class="save-notice" role="status" hidden></div>
 <nav><div class="tabs" id="tabs"></div></nav>
 
 <div class="deck" id="deck"></div>
+<dialog id="actionDialog" aria-labelledby="dialogTitle"><h2 id="dialogTitle"></h2><div id="dialogContent"></div><div class="dialog-error" id="dialogError" role="alert"></div><div class="acts"><button type="button" class="b-ghost" onclick="closeDialog()">取消</button><button type="button" class="b-gold" id="dialogConfirm">确认</button></div></dialog>
+<div id="printArea"></div>
 
 <div class="veil" id="veil">
   <img id="veilImg" alt="工资单">
@@ -282,619 +319,9 @@
   </div>
 </div>
 
-<script>
-/* ===================== 规则配置 ===================== */
-const WAN = 10000;
-
-const RULES = {
-  store: { rate: 0.001, min: 600000 },   // 店长总店提成：千分之一，总店满 60 万才有
-
-  tiers: [                               // 个人业绩提成，店长与销售共用
-    { min: 200000, acd: 0.02, b: 0.01  },
-    { min: 150000, acd: 0.01, b: 0.005 }
-  ],
-  floor: 150000,
-
-  manager:  { pay:{ basic:8000, social:0,    attend:0,   meal:0   }, freeDays:0 },
-  sales:    { pay:{ basic:2500, social:1200, attend:500, meal:300 }, freeDays:2 },
-  finance:  { pay:{ basic:5200, social:1200, attend:100, meal:300 }, freeDays:2 },
-  delivery: { pay:{ basic:4200, social:1200, attend:100, meal:300 }, freeDays:2, perTrip:15 },
-
-  // 财务 / 配送 业绩奖金：每满 10 万一格，零头不算；满 60 万后全部格子按 200
-  perfBonus: [
-    { min: 600000, per100k: 200 },
-    { min: 400000, per100k: 100 }
-  ]
-};
-
-["manager","sales","finance","delivery"].forEach(t => {
-  const p = RULES[t].pay, n = x => x.toLocaleString("zh-CN");
-  RULES[t].base = p.basic + p.social + p.attend + p.meal;
-  RULES[t].dailyBase = p.basic + p.social + p.meal;      // 日薪基数不含全勤奖
-  RULES[t].baseNote = (p.social || p.attend || p.meal)
-    ? `基本 ${n(p.basic)} + 社保 ${n(p.social)} + 全勤 ${n(p.attend)} + 中餐 ${n(p.meal)}`
-    : `基本工资 ${n(p.basic)}`;
-});
-
-const STAFF = [
-  { id:"wuxuan",  name:"吴璇",   role:"店长", type:"manager"  },
-  { id:"xiaoxue", name:"小雪",   role:"销售", type:"sales"    },
-  { id:"xiaotao", name:"小桃",   role:"销售", type:"sales"    },
-  { id:"zhugk",   name:"朱国坤", role:"财务", type:"finance"  },
-  { id:"qiujb",   name:"邱家斌", role:"配送", type:"delivery" }
-];
-
-/* ===================== 计算 ===================== */
-const r2 = n => Math.round(n*100)/100;
-const y  = n => "¥" + r2(n).toLocaleString("zh-CN",{minimumFractionDigits:0,maximumFractionDigits:2});
-const sig = n => (n<0 ? "-" + y(-n) : y(n));
-
-function perfBonus(p){
-  for (const t of RULES.perfBonus){
-    if (p < t.min) continue;
-    const units = Math.floor(p/100000);
-    return { amt: units * t.per100k, note: `业绩奖金（${units} 个 10 万 × ${t.per100k} 元）` };
-  }
-  const need = RULES.perfBonus[RULES.perfBonus.length-1].min;
-  return { amt: 0, note: `业绩奖金 — 总店未达 ${need/WAN} 万，无奖金`, miss: true };
-}
-
-function personalCommission(acd, b, lines){
-  const total = acd + b;
-  const tier = RULES.tiers.find(t => total >= t.min);
-  if (!tier){
-    lines.push(["个人提成 — 未达 15 万门槛，差 " + y(RULES.floor - total), 0, "miss", "bonus"]);
-    return 0;
-  }
-  const ca = r2(acd * tier.acd), cb = r2(b * tier.b);
-  lines.push(["个人业绩合计 " + y(total) + " → 满 " + (tier.min/WAN) + " 万档", null, "", "bonus"]);
-  lines.push(["A/C/D 类提成（" + (tier.acd*100) + "%）", ca, "", "bonus"]);
-  lines.push(["B 类提成（" + (tier.b*100) + "%）", cb, "", "bonus"]);
-  return ca + cb;
-}
-
-function leaveDeduct(R, days, monthDays, lines){
-  if (days <= 0) return 0;
-  const n = x => x.toLocaleString("zh-CN");
-  if (days <= R.freeDays){
-    lines.push([`请假 ${days} 天 — 在每月 ${R.freeDays} 天正常休息内，不扣`, null, "", "deduct"]);
-    return 0;
-  }
-  let sum = 0;
-  if (R.pay.attend > 0){
-    lines.push([`请假超过 ${R.freeDays} 天 — 扣全勤奖`, -R.pay.attend, "", "deduct"]);
-    sum += R.pay.attend;
-  }
-  const over = days - R.freeDays;
-  const amt = r2(R.dailyBase / monthDays * over);
-  lines.push([`请假扣款（${n(R.dailyBase)} ÷ ${monthDays} 天 × ${over} 天）`, -amt, "", "deduct"]);
-  return sum + amt;
-}
-
-function calc(emp, v, storePerf, monthDays){
-  const acd = v.acd||0, b = v.b||0, adj = v.adj||0, leave = v.leave||0;
-  const R = RULES[emp.type];
-  const lines = [];
-  let extra = 0;
-  const base = R.base;
-  lines.push(["底薪（" + R.baseNote + "）", base, "", "base"]);
-
-  if (emp.type === "manager"){
-    let sc = 0;
-    if (storePerf >= RULES.store.min){
-      sc = r2(storePerf * RULES.store.rate);
-      lines.push(["总店提成（" + y(storePerf) + " × 千分之一）", sc, "", "bonus"]);
-    } else {
-      lines.push(["总店提成 — 总店未达 " + (RULES.store.min/WAN) + " 万，无提成（差 " + y(RULES.store.min - storePerf) + "）", 0, "miss", "bonus"]);
-    }
-    extra = sc + personalCommission(acd, b, lines);
-  }
-
-  if (emp.type === "sales") extra = personalCommission(acd, b, lines);
-
-  if (emp.type === "finance" || emp.type === "delivery"){
-    if (emp.type === "delivery"){
-      const trips = v.trips||0, tc = trips * R.perTrip;
-      lines.push(["送货提成（" + trips + " 趟 × " + R.perTrip + " 元）", tc, "", "bonus"]);
-      extra += tc;
-    }
-    const bonus = perfBonus(storePerf);
-    lines.push([bonus.note, bonus.amt, bonus.miss ? "miss" : "", "bonus"]);
-    extra += bonus.amt;
-  }
-
-  const deduct = leaveDeduct(R, leave, monthDays, lines);
-  if (adj !== 0) lines.push([adj > 0 ? "其他补贴 / 奖励" : "其他扣款", adj, "", adj > 0 ? "bonus" : "deduct"]);
-  return { base, extra, adj, deduct, total: r2(base + extra + adj - deduct), lines };
-}
-
-/* ===================== 界面 ===================== */
-const FIELDS = {
-  manager:  [["acd","A/C/D 类业绩",1],["b","B 类业绩",1],["leave","请假天数",0],["adj","其他增减",1]],
-  sales:    [["acd","A/C/D 类业绩",1],["b","B 类业绩",1],["leave","请假天数",0],["adj","其他增减",1]],
-  finance:  [["leave","请假天数",0],["adj","其他增减",1]],
-  delivery: [["trips","送货趟数",0],["leave","请假天数",0],["adj","其他增减",1]]
-};
-const RULETEXT = {
-  manager:  "底薪 8,000　总店满 60 万提千分之一　个人满 15 万起提（15 万档 1% / 0.5%，20 万档 2% / 1%）　请假第 1 天起按 8,000 ÷ 当月天数扣",
-  sales:    "底薪 4,500　个人满 15 万起提（15 万档 1% / 0.5%，20 万档 2% / 1%）　每月 2 天正常休息，超出先扣全勤 500，再按 4,000 ÷ 当月天数扣",
-  finance:  "底薪 6,800　总店满 40 万每 10 万奖 100，满 60 万翻倍为 200（70 万 = 1,400）　每月 2 天正常休息，超出先扣全勤 100，再按 6,700 ÷ 当月天数扣",
-  delivery: "底薪 5,800　每趟 15 元　总店满 40 万每 10 万奖 100，满 60 万翻倍为 200　每月 2 天正常休息，超出先扣全勤 100，再按 5,700 ÷ 当月天数扣"
-};
-
-const KEY = "tsmp-salary-v1";
-let saved = JSON.parse(localStorage.getItem(KEY) || "{}");
-let RESULT = {};                                   // 每人最新计算结果，存图/存 Word 用
-
-const monthDaysOf = ym => { const [Y,M] = ym.split("-").map(Number); return new Date(Y, M, 0).getDate(); };
-const monthLabel  = ym => { const [Y,M] = ym.split("-"); return `${Y} 年 ${+M} 月`; };
-const fileMonth   = ym => { const [Y,M] = ym.split("-"); return `${Y}${M}`; };
-
-// 月份默认当月
-const now = new Date();
-const thisMonth = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
-document.getElementById("month").value = saved.month || thisMonth;
-
-/* ---- 建页 ---- */
-const PAGES = [{ id:"store", label:"总店" }]
-  .concat(STAFF.map(e => ({ id:e.id, label:e.name, emp:e })))
-  .concat([{ id:"sum", label:"汇总" }]);
-
-document.getElementById("tabs").innerHTML =
-  PAGES.map((p,i) => `<div class="tab${i===0?" on":""}" data-i="${i}">${p.label}</div>`).join("");
-
-document.getElementById("deck").innerHTML = PAGES.map(p => {
-  if (p.id === "store") return `
-    <section class="slide">
-      <h2>本月总数</h2>
-      <p class="rule">总店业绩决定：店长的总店提成（满 60 万）、财务与配送的业绩奖金（满 40 万）。<br>当月天数由上方月份自动带出，是请假扣款的分母。</p>
-      <div class="fields">
-        <div class="f" style="grid-column:1/-1">
-          <label>本月总店业绩（元）</label>
-          <input type="number" id="storePerf" min="0" step="1000" placeholder="0"
-                 inputmode="numeric" enterkeyhint="done">
-        </div>
-      </div>
-      <div class="lines" id="storeLines"></div>
-      <div class="total">
-        <div class="lab">全店工资合计</div>
-        <div class="amt" id="storeGrand">¥0</div>
-      </div>
-      <p class="hint">左右滑动查看每个人 →</p>
-    </section>`;
-
-  if (p.id === "sum") return `
-    <section class="slide">
-      <h2>本月汇总</h2>
-      <p class="rule">扣减 = 请假扣款 + 其他增减。每个人的明细在各自那一页。</p>
-      <table>
-        <thead><tr><th>姓名</th><th>底薪</th><th>提成/奖金</th><th>扣减</th><th>实发</th></tr></thead>
-        <tbody id="sumBody"></tbody>
-        <tfoot><tr><td>合计</td><td></td><td></td><td></td><td id="sumAll">¥0</td></tr></tfoot>
-      </table>
-      <div class="acts" style="margin-top:auto">
-        <button class="b-ghost" onclick="copyAll()">复制全部</button>
-        <button class="b-ghost" onclick="window.print()">打印</button>
-        <button class="b-ghost" onclick="resetAll()">清空</button>
-      </div>
-      <p class="hint" style="margin-top:14px">
-        <a href="rent.html" style="color:var(--gold);text-decoration:none">房租看板 →</a>
-      </p>
-    </section>`;
-
-  const e = p.emp;
-  return `
-    <section class="slide">
-      <div class="role">${e.role}</div>
-      <h2>${e.name}</h2>
-      <p class="rule">${RULETEXT[e.type]}</p>
-      <div class="fields">
-        ${FIELDS[e.type].map(([k,l,money]) => `
-          <div class="f">
-            <label>${l}${money?"（元）":""}</label>
-            <!-- 其他增减要能填负数，故意不设 inputmode：
-                 iOS 上一旦设成 numeric 就是纯数字小键盘，打不出减号 -->
-            <input type="number" step="${money?1000:1}" ${k==="leave"?'min="0"':""}
-                   ${k==="adj" ? "" : 'inputmode="numeric" min="0"'}
-                   data-emp="${e.id}" data-k="${k}" placeholder="0"
-                   enterkeyhint="done">
-          </div>`).join("")}
-      </div>
-      <div class="lines" id="out-${e.id}"></div>
-      <div class="total">
-        <div class="lab">实发</div>
-        <div class="amt" id="tot-${e.id}">¥0</div>
-      </div>
-      <div class="acts">
-        <button class="b-gold" onclick="saveImage('${e.id}')">存为图片</button>
-        <button class="b-pink" onclick="saveWord('${e.id}')">存为 Word</button>
-      </div>
-    </section>`;
-}).join("");
-
-/* ---- 回填已存数据 ---- */
-document.getElementById("storePerf").value = saved.storePerf ?? "";
-document.querySelectorAll("input[data-emp]").forEach(i => {
-  const v = saved[i.dataset.emp]?.[i.dataset.k];
-  if (v !== undefined && v !== null) i.value = v;
-});
-
-/* ---- 滑动与导航联动 ---- */
-const deck = document.getElementById("deck");
-const tabEls = [...document.querySelectorAll(".tab")];
-function goTo(i){
-  const target = deck.clientWidth * i;
-  deck.scrollTo({ left: target, behavior:"smooth" });
-  // 有些设备/系统会忽略平滑滚动，兜底直接跳过去
-  setTimeout(() => {
-    if (Math.abs(deck.scrollLeft - target) > 4) deck.scrollTo({ left: target });
-  }, 320);
-}
-tabEls.forEach(t => t.onclick = () => goTo(+t.dataset.i));
-// 用 IntersectionObserver 跟踪当前页，比 scroll 事件可靠
-const slideEls = [...deck.querySelectorAll(".slide")];
-let currentPage = 0;
-function markPage(i){
-  if (i === currentPage) return;
-  currentPage = i;
-  tabEls.forEach((t,j) => t.classList.toggle("on", j === i));
-  const on = tabEls[i];
-  if (!on) return;
-  const bar = on.parentElement.parentElement;                 // nav
-  const want = bar.scrollLeft + on.getBoundingClientRect().left
-             - bar.getBoundingClientRect().left - (bar.clientWidth - on.offsetWidth) / 2;
-  bar.scrollTo({ left: want, behavior:"smooth" });
-  setTimeout(() => {
-    if (Math.abs(bar.scrollLeft - want) > 4) bar.scrollTo({ left: want });
-  }, 320);
-}
-const io = new IntersectionObserver(entries => {
-  entries.forEach(en => {
-    if (en.isIntersecting && en.intersectionRatio > .55)
-      markPage(slideEls.indexOf(en.target));
-  });
-}, { root: deck, threshold: [.56, .9] });
-slideEls.forEach(s => io.observe(s));
-
-/* ---- 读写 ---- */
-function readAll(){
-  const ym = document.getElementById("month").value || thisMonth;
-  const d = {
-    month: ym,
-    storePerf: +document.getElementById("storePerf").value || 0,
-    monthDays: monthDaysOf(ym)
-  };
-  STAFF.forEach(e => d[e.id] = {});
-  document.querySelectorAll("input[data-emp]").forEach(i => {
-    d[i.dataset.emp][i.dataset.k] = +i.value || 0;
-  });
-  return d;
-}
-function saveRaw(){
-  const r = {
-    month: document.getElementById("month").value,
-    storePerf: document.getElementById("storePerf").value
-  };
-  STAFF.forEach(e => r[e.id] = {});
-  document.querySelectorAll("input[data-emp]").forEach(i => {
-    r[i.dataset.emp][i.dataset.k] = i.value;
-  });
-  localStorage.setItem(KEY, JSON.stringify(r));
-}
-
-const lineHTML = ([t,v,cls]) =>
-  v === null
-    ? `<div class="ln note"><span class="t">${t}</span><span class="v"></span></div>`
-    : `<div class="ln ${cls||""}"><span class="t">${t}</span><span class="v ${v<0?"neg":""}">${sig(v)}</span></div>`;
-
-let DATA = {}, allText = "";
-function render(){
-  DATA = readAll();
-  saveRaw();
-  const { storePerf:sp, monthDays:md, month:ym } = DATA;
-  document.getElementById("daysTip").textContent = "本月 " + md + " 天";
-
-  let grand = 0, rows = "";
-  allText = `TSMP 工资单 · ${monthLabel(ym)}\n总店业绩 ${y(sp)}｜本月 ${md} 天\n\n`;
-
-  STAFF.forEach(e => {
-    const r = calc(e, DATA[e.id], sp, md);
-    RESULT[e.id] = r;
-    grand += r.total;
-    document.getElementById("out-" + e.id).innerHTML = r.lines.map(lineHTML).join("");
-    document.getElementById("tot-" + e.id).textContent = y(r.total);
-
-    const net = r2(r.adj - r.deduct);
-    rows += `<tr><td>${e.name}</td><td>${y(r.base)}</td><td>${y(r.extra)}</td>`
-          + `<td class="${net<0?"neg":""}">${net ? sig(net) : "—"}</td><td>${y(r.total)}</td></tr>`;
-
-    allText += `${e.name}（${e.role}）\n`
-      + r.lines.filter(l => l[1] !== null).map(l => `  ${l[0]}：${sig(l[1])}`).join("\n")
-      + `\n  实发：${y(r.total)}\n\n`;
-  });
-
-  document.getElementById("storeLines").innerHTML = [
-    ["总店业绩", sp],
-    ["店长总店提成门槛 60 万", null],
-    ["财务 / 配送奖金门槛 40 万", null]
-  ].map(lineHTML).join("");
-  document.getElementById("storeGrand").textContent = y(grand);
-  document.getElementById("sumBody").innerHTML = rows;
-  document.getElementById("sumAll").textContent = y(grand);
-  allText += "全店合计：" + y(grand);
-}
-
-document.addEventListener("input", e => {
-  if (e.target.matches("input")) render();
-});
-// 手机上按「完成」收起键盘
-document.addEventListener("keydown", e => {
-  if (e.key === "Enter" && e.target.matches("input")) e.target.blur();
-});
-
-/* ===================== 完整工资单分段（图片 / Word 共用） ===================== */
-// 网页上那一列是精简版；导出的工资单要让本人能自己核对，所以业绩、出勤、
-// 底薪构成全部摊开，并按「本月数据 / 固定工资 / 提成与奖金 / 扣款」四段列。
-function buildSections(emp){
-  const v = DATA[emp.id], r = RESULT[emp.id], R = RULES[emp.type];
-  const sec = [];
-  // 发给本人的单子上不写「未达 X 万档 / 差多少」这类解释，也不列 ¥0 的空行，
-  // 只留真金白银的项。去掉的都是 0，不影响小计。（完整说明留在网页那一列）
-  const pick = g => r.lines.filter(l => l[3] === g && l[1] !== null && l[1] !== 0);
-
-  // 发出去的单子只报结果，不报算法。网页那一列保留完整算式，自己核账用。
-  //   底薪（基本 2,500 + 社保 1,200 …）  → 底薪
-  //   总店提成（¥620,000 × 千分之一）    → 总店提成
-  //   请假扣款（4,000 ÷ 31 天 × 1 天）   → 请假扣款
-  //   请假超过 2 天 — 扣全勤奖           → 全勤奖扣除
-  const plain = t => t.includes("扣全勤奖") ? "全勤奖扣除"
-                   : t.replace(/（[^（）]*）/g, "").replace(/\s*—.*$/, "").trim();
-
-  // 一、本月数据
-  const d1 = [["总店业绩", y(DATA.storePerf), ""]];
-  if (emp.type === "manager" || emp.type === "sales"){
-    const acd = v.acd||0, b = v.b||0;
-    d1.push(["个人 A/C/D 类业绩", y(acd), ""]);
-    d1.push(["个人 B 类业绩", y(b), ""]);
-    d1.push(["个人业绩合计", y(acd + b), ""]);
-  }
-  if (emp.type === "delivery") d1.push(["送货趟数", (v.trips||0) + " 趟", ""]);
-  d1.push(["请假天数", (v.leave||0) + " 天", ""]);
-  sec.push({ title:"本月数据", rows:d1 });
-
-  // 二、固定工资
-  const p = R.pay;
-  const d2 = [["基本工资", y(p.basic), ""]];
-  if (p.social) d2.push(["社保补贴", y(p.social), ""]);
-  if (p.attend) d2.push(["全勤奖",   y(p.attend), ""]);
-  if (p.meal)   d2.push(["中餐补助", y(p.meal), ""]);
-  sec.push({ title:"固定工资", rows:d2, sub: d2.length > 1 ? r.base : null });
-
-  // 三、提成与奖金
-  const bon = pick("bonus");
-  sec.push({
-    title:"提成与奖金",
-    rows: bon.length ? bon.map(l => [plain(l[0]), sig(l[1]), ""]) : [["本月无提成", "—", ""]],
-    sub: bon.reduce((s,l) => s + l[1], 0)
-  });
-
-  // 四、扣款
-  const ded = pick("deduct");
-  sec.push({
-    title:"扣款",
-    rows: ded.length ? ded.map(l => [plain(l[0]), sig(l[1]), ""]) : [["本月无扣款", "—", ""]],
-    sub: ded.length ? ded.reduce((s,l) => s + l[1], 0) : null
-  });
-
-  return sec;
-}
-
-/* ===================== 单人工资单：图片 ===================== */
-// 纸张噪点：生成一张小噪点贴图，再平铺满整张画布（比逐像素快得多）
-let _noise = null;
-function noisePattern(ctx){
-  if (!_noise){
-    const N = 128, t = document.createElement("canvas");
-    t.width = t.height = N;
-    const tc = t.getContext("2d"), img = tc.createImageData(N, N);
-    for (let i = 0; i < img.data.length; i += 4){
-      const v = (Math.random() * 255) | 0;
-      img.data[i] = img.data[i+1] = img.data[i+2] = v;
-      img.data[i+3] = 12;                   // 很淡，只是让纸面不死板
-    }
-    tc.putImageData(img, 0, 0);
-    _noise = t;
-  }
-  return ctx.createPattern(_noise, "repeat");
-}
-
-function drawSlip(emp){
-  const r = RESULT[emp.id], ym = DATA.month;
-  const W = 1080, PAD = 92;
-  const sections = buildSections(emp);
-  const ROW0 = 566, ROWH = 56, HEAD = 78, SUB = 62, GAP = 34;   // 行高 / 段标题 / 小计 / 段间距
-  const blockH = s => HEAD + s.rows.length * ROWH + (s.sub != null ? SUB : 0) + GAP;
-  const H = ROW0 + sections.reduce((h,s) => h + blockH(s), 0) + 300;
-
-  const c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const x = c.getContext("2d");
-
-  // 单一纸色，不用渐变；层次交给线条
-  x.fillStyle = "#FAF8F5"; x.fillRect(0, 0, W, H);
-  x.fillStyle = noisePattern(x);            // 纸张噪点
-  x.fillRect(0, 0, W, H);
-
-  const INK = "#141210", INK2 = "#6B6259", INK3 = "#A79E95";
-  const LINE = "#E6DFD6", LINE_SOFT = "#EFE9E1";
-  const GOLD = "#A9873F", GOLD_LITE = "#C9B183", RED = "#AE6558";
-  const F  = (w,s) => `${w} ${s}px -apple-system, "SF Pro Display", "PingFang SC", sans-serif`;
-  const SERIF = s => `400 ${s}px Didot, "Bodoni 72", "Playfair Display", Georgia, "Times New Roman", serif`;
-  const SONG  = s => `400 ${s}px "Songti SC", "STSong", serif`;
-  const track = (text, px, py, sp, font, style) => {   // 手绘字距，兼容性最好
-    x.font = font; x.fillStyle = style; x.textAlign = "left";
-    let cx = px;
-    for (const ch of text){ x.fillText(ch, cx, py); cx += x.measureText(ch).width + sp; }
-    return cx - sp;
-  };
-
-  // 字标：Didone 衬线 + 金箔渐变 + 发丝线 + 宋体
-  const foil = x.createLinearGradient(PAD, 96, PAD + 300, 156);
-  foil.addColorStop(0, "#E7D2A0"); foil.addColorStop(.34, "#B2914F");
-  foil.addColorStop(.52, "#8C6C2C"); foil.addColorStop(.74, "#D9BE7E");
-  foil.addColorStop(1, "#A9873F");
-  const wmEnd = track("TSMP", PAD, 146, 17, SERIF(56), foil);
-
-  x.fillStyle = GOLD_LITE; x.fillRect(PAD, 168, wmEnd - PAD, 1);
-
-  track("工资单", PAD, 200, 11, SONG(19), INK3);
-
-  x.textAlign = "right"; x.font = F(400, 26); x.fillStyle = INK2;
-  x.fillText(monthLabel(ym), W - PAD, 146);
-
-  x.fillStyle = LINE; x.fillRect(0, 268, W, 1);          // 整幅通栏线
-
-  x.textAlign = "left";
-  track(emp.role, PAD, 336, 6, F(500, 22), GOLD);
-  x.font = F(600, 84); x.fillStyle = INK;
-  x.fillText(emp.name, PAD, 434);
-
-  x.fillStyle = LINE; x.fillRect(0, 490, W, 1);
-
-  let yy = ROW0;
-  sections.forEach(s => {
-    // 段标题 + 段首金线
-    track(s.title, PAD, yy, 7, F(500, 22), GOLD);
-    x.fillStyle = GOLD_LITE; x.fillRect(PAD, yy + 24, W - PAD*2, 1);
-    yy += HEAD;
-
-    s.rows.forEach(([t, val, cls], i) => {
-      if (i) { x.fillStyle = LINE_SOFT; x.fillRect(PAD, yy - 38, W - PAD*2, 1); }  // 行间发丝线
-
-      // 先量右边数值实际占多宽，剩下的才是标签的地方，避免一刀切截断
-      x.font = F(500, 28);
-      const valW = x.measureText(val).width;
-      x.fillStyle = String(val).startsWith("-") || cls === "miss" ? RED : INK;
-      x.textAlign = "right";
-      x.fillText(val, W - PAD, yy);
-
-      x.font = F(400, 26);
-      x.fillStyle = cls === "miss" ? RED : INK2;
-      x.textAlign = "left";
-      const room = W - PAD*2 - valW - 36;
-      let label = t;
-      while (x.measureText(label).width > room && label.length > 6)
-        label = label.slice(0, -2) + "…";
-      x.fillText(label, PAD, yy);
-      yy += ROWH;
-    });
-
-    if (s.sub != null){
-      x.fillStyle = LINE; x.fillRect(PAD, yy - 32, W - PAD*2, 1);
-      x.font = F(400, 24); x.fillStyle = INK3; x.textAlign = "left";
-      x.fillText("小计", PAD, yy + 10);
-      x.font = F(600, 28);
-      x.fillStyle = s.sub < 0 ? RED : INK;
-      x.textAlign = "right";
-      x.fillText(sig(s.sub), W - PAD, yy + 10);
-      yy += SUB;
-    }
-    yy += GAP;
-  });
-
-  yy -= GAP;
-  yy += 26;
-  x.fillStyle = GOLD; x.fillRect(0, yy, W, 1);           // 通栏金线，压住整张单子
-
-  yy += 88;
-  x.textAlign = "left";
-  track("实发合计", PAD, yy, 5, F(400, 22), INK3);
-  x.textAlign = "right"; x.font = F(300, 92); x.fillStyle = GOLD;
-  x.fillText(y(r.total), W - PAD, yy + 26);
-
-  x.fillStyle = LINE; x.fillRect(PAD, H - 148, W - PAD*2, 1);
-  x.textAlign = "right";
-  track("TSMP", W - PAD - 78, H - 100, 6, SERIF(22), GOLD_LITE);
-  return c;
-}
-
-function saveImage(id){
-  const emp = STAFF.find(e => e.id === id);
-  const c = drawSlip(emp);
-  const name = `${emp.name}-${fileMonth(DATA.month)}-工资单.png`;
-  c.toBlob(b => {
-    const url = URL.createObjectURL(b);
-    const veil = document.getElementById("veil");
-    document.getElementById("veilImg").src = url;
-    const a = document.getElementById("veilDl");
-    a.href = url; a.download = name;
-    veil.classList.add("on");
-  }, "image/png");
-}
-function closeVeil(){ document.getElementById("veil").classList.remove("on"); }
-document.getElementById("veil").addEventListener("click", e => {
-  if (e.target.id === "veil") closeVeil();
-});
-
-/* ===================== 单人工资单：Word ===================== */
-function saveWord(id){
-  const emp = STAFF.find(e => e.id === id);
-  const r = RESULT[emp.id];
-  const rows = buildSections(emp).map(s => `
-      <tr><td colspan="2" style="padding:20px 0 6px;color:#B2914F;font-size:12px;letter-spacing:3px;border-bottom:1px solid #E4D3AE">${s.title}</td></tr>
-      ${s.rows.map(([t,val,cls]) => `<tr>
-        <td style="padding:8px 0;color:${cls==="miss"?"#B4746A":"#5b524b"};border-bottom:1px solid #f0e9e6">${t}</td>
-        <td style="padding:8px 0;text-align:right;color:${String(val).startsWith("-")||cls==="miss"?"#B4746A":"#17130F"};border-bottom:1px solid #f0e9e6">${val}</td>
-      </tr>`).join("")}
-      ${s.sub != null ? `<tr>
-        <td style="padding:8px 0;color:#8a8078">小计</td>
-        <td style="padding:8px 0;text-align:right;font-weight:bold;color:${s.sub<0?"#B4746A":"#17130F"}">${sig(s.sub)}</td>
-      </tr>` : ""}`).join("");
-
-  const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office"
-    xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-    <head><meta charset="utf-8"><title>${emp.name} ${monthLabel(DATA.month)} 工资单</title></head>
-    <body style="font-family:'PingFang SC','Microsoft YaHei',sans-serif;color:#17130F">
-      <div style="width:520px">
-        <p style="margin:0;font-family:Didot,'Bodoni 72',Georgia,'Times New Roman',serif;font-size:27px;letter-spacing:9px;color:#A9873F">TSMP</p>
-        <div style="height:1px;background:#C9A96A;margin:6px 0 5px;width:196px"></div>
-        <p style="margin:0;font-family:'Songti SC',SimSun,serif;font-size:11px;letter-spacing:6px;color:#a79b92">工资单</p>
-        <p style="margin:10px 0 22px;color:#8a8078;font-size:13px">${monthLabel(DATA.month)}</p>
-        <p style="margin:0;color:#B2914F;font-size:12px;letter-spacing:3px">${emp.role}</p>
-        <p style="margin:2px 0 18px;font-size:30px;font-weight:bold">${emp.name}</p>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">${rows}</table>
-        <table style="width:100%;border-collapse:collapse;margin-top:18px">
-          <tr>
-            <td style="color:#8a8078;font-size:13px;letter-spacing:3px">实发合计</td>
-            <td style="text-align:right;font-size:26px;color:#A9873F;font-weight:bold">${y(r.total)}</td>
-          </tr>
-        </table>
-      </div>
-    </body></html>`;
-
-  const blob = new Blob(["﻿", html], { type:"application/msword" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${emp.name}-${fileMonth(DATA.month)}-工资单.doc`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-}
-
-/* ===================== 其他 ===================== */
-function copyAll(){
-  navigator.clipboard.writeText(allText).then(
-    () => alert("已复制全部明细"),
-    () => alert("复制失败，请手动选中")
-  );
-}
-function resetAll(){
-  if (!confirm("清空所有已填数据？")) return;
-  localStorage.removeItem(KEY);
-  document.querySelectorAll('input[type=number]').forEach(i => i.value = "");
-  render();
-}
-
-render();
-</script>
+<script src="payroll-core.js?v=2"></script>
+<script src="ledger.js?v=2"></script>
+<script src="app.js?v=2"></script>
+<script src="exports.js?v=2"></script>
 </body>
 </html>
